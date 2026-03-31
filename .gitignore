@@ -1,0 +1,18 @@
+# Environment
+.venv/
+
+# Data and outputs (regenerated from scripts)
+data/
+output/
+
+# Learning notebook (not portfolio material)
+notebooks/
+
+# Spark artifacts
+metastore_db/
+derby.log
+spark-warehouse/
+
+# Python
+__pycache__/
+*.pyc
