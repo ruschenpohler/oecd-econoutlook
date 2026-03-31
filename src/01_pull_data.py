@@ -58,13 +58,13 @@ def build_url():
 
     URL pattern:
       {endpoint}/{dataflow}/{key}?params
-    Key structure for this dataflow:
-      {REF_AREA}.A.{MEASURE}.
+    Key structure for DF_EO (from OECD Data Explorer):
+      {REF_AREA}.{MEASURE}.{FREQUENCY}
     We leave REF_AREA empty (= all countries) and pass measures as +-separated.
     """
     measures_str = "+".join(MEASURES.keys())
-    # Key: .A.{MEASURES}. (empty REF_AREA = all, trailing dot = all remaining dims)
-    key = f".A.{measures_str}."
+    # Key: .{MEASURES}.A (empty REF_AREA = all, A = annual)
+    key = f".{measures_str}.A"
     params = (
         "startPeriod=1990"
         "&dimensionAtObservation=AllDimensions"
