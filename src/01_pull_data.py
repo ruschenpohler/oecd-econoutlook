@@ -22,26 +22,33 @@ DATAFLOW = "OECD.ECO.MAD,DSD_EO@DF_EO,"
 
 # Variables to pull (MEASURE dimension codes).
 # Codes verified against DSD_EO@DF_EO available measures (217 total).
+# Dropped CPI_YTYPCT (headline inflation) and SRATIO (household saving ratio)
+# due to structural missingness:
+#   - CPI_YTYPCT: entirely missing for all Eurozone members (reported at
+#     aggregate level only in the Economic Outlook)
+#   - SRATIO: entirely missing for 26 countries including major OECD members
+#     (FRA, GBR, GRC, PRT, ISL, ISR, TUR, ...)
+# Remaining 6 features still capture demand (investment, trade), external
+# balance (current account), and labour market slack (unemployment).
 MEASURES = {
     "GDPV_ANNPCT":  "Real GDP growth (%)",               # ← target variable
     "UNR":          "Unemployment rate (%)",
-    "CPI_YTYPCT":   "Headline inflation (%)",
     "CBGDPR":       "Current account balance (% GDP)",
     "ITV_ANNPCT":   "Gross fixed capital formation, volume, growth (%)",
-    "SRATIO":       "Household net saving ratio (%)",
     "XGSV_ANNPCT":  "Export volume growth (%)",
     "MGSV_ANNPCT":  "Import volume growth (%)",
 }
 
-# Known OECD/aggregate entity codes to exclude.
-# These are reporting zones, not individual countries.
-AGGREGATES = {
-    "OECD", "OECDE", "OECDTOT",
-    "EA", "EA17", "EA19", "EA20",
-    "EU", "EU15", "EU27_2020", "EU28",
-    "G7", "G20",
-    "NMEC", "WLD", "DAE",
-    "BRIICS",
+# Positive list: OECD member country codes (as of 2024, 38 members).
+# We restrict to actual member states to avoid aggregates (OECD, EA20, G7, W, ...),
+# non-OECD partner economies (ARG, BRA, CHN, IDN, IND, ...), and commodity
+# groupings (OIL_O, OIL_SAU_O). This keeps the empirical question clean:
+# "nowcasting GDP growth across OECD member economies."
+OECD_MEMBERS = {
+    "AUS", "AUT", "BEL", "CAN", "CHL", "COL", "CRI", "CZE", "DEU", "DNK",
+    "ESP", "EST", "FIN", "FRA", "GBR", "GRC", "HUN", "IRL", "ISL", "ISR",
+    "ITA", "JPN", "KOR", "LTU", "LUX", "LVA", "MEX", "NLD", "NOR", "NZL",
+    "POL", "PRT", "SVK", "SVN", "SWE", "CHE", "TUR", "USA",
 }
 
 # Paths — resolve relative to project root so the script works from any cwd
@@ -126,11 +133,16 @@ def clean_and_pivot(raw: pd.DataFrame) -> pd.DataFrame:
     df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
     df["value"] = pd.to_numeric(df["value"], errors="coerce")
 
-    # Drop aggregate entities (OECD, EA19, etc.)
-    n_before = df["country_code"].nunique()
-    df = df[~df["country_code"].isin(AGGREGATES)]
+    # Keep only OECD member countries (positive list).
+    # Drops aggregates (OECD, EA20, G7, W, ...), non-OECD partners (ARG, BRA,
+    # CHN, ...), and commodity groupings (OIL_O, OIL_SAU_O).
+    all_codes = set(df["country_code"].unique())
+    n_before = len(all_codes)
+    dropped = sorted(all_codes - OECD_MEMBERS)
+    df = df[df["country_code"].isin(OECD_MEMBERS)]
     n_after = df["country_code"].nunique()
-    print(f"Dropped {n_before - n_after} aggregate entities, kept {n_after} countries")
+    print(f"Kept {n_after} OECD members, dropped {n_before - n_after} "
+          f"non-member/aggregate entities: {', '.join(dropped)}")
 
     # Pivot: one row per (country, year), one column per measure
     df_wide = df.pivot_table(
