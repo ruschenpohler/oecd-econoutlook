@@ -20,16 +20,17 @@ import pandas as pd
 ENDPOINT = "https://sdmx.oecd.org/public/rest/data"
 DATAFLOW = "OECD.ECO.MAD,DSD_EO@DF_EO,"
 
-# Variables to pull (MEASURE dimension codes)
+# Variables to pull (MEASURE dimension codes).
+# Codes verified against DSD_EO@DF_EO available measures (217 total).
 MEASURES = {
-    "GDPV_ANNPCT":   "Real GDP growth (%)",           # ← target variable
-    "UN":            "Unemployment rate (%)",
-    "CPI_ANNPCT":    "CPI inflation (%)",
-    "CB_ANNPCT":     "Current account balance (% GDP)",
-    "ITISK_ANNPCT":  "Total investment (% GDP)",
-    "SAVH_ANNPCT":   "Household saving ratio (%)",
-    "XGSVD_ANNPCT":  "Export volume growth (%)",
-    "XMGSVD_ANNPCT": "Import volume growth (%)",
+    "GDPV_ANNPCT":  "Real GDP growth (%)",               # ← target variable
+    "UNR":          "Unemployment rate (%)",
+    "CPI_YTYPCT":   "Headline inflation (%)",
+    "CBGDPR":       "Current account balance (% GDP)",
+    "ITV_ANNPCT":   "Gross fixed capital formation, volume, growth (%)",
+    "SRATIO":       "Household net saving ratio (%)",
+    "XGSV_ANNPCT":  "Export volume growth (%)",
+    "MGSV_ANNPCT":  "Import volume growth (%)",
 }
 
 # Known OECD/aggregate entity codes to exclude.
