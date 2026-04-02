@@ -146,17 +146,19 @@ predictions.filter("country_code = 'DEU'") \
 
 # ---------------------------------------------------------------------------
 # 8. Persist for Phase 4
-#    Save fitted model to output/; train/test as CSV for reload without re-fitting.
+#    Save train/test splits as CSV so Phase 4 can reload without re-reading
+#    the raw data. The fitted model is NOT serialized to disk — model.write()
+#    requires winutils.exe to set filesystem permissions on Windows, which is
+#    brittle. Phase 4 re-fits from scratch instead (fitting takes ~30s here).
 # ---------------------------------------------------------------------------
 os.makedirs(ROOT / "output", exist_ok=True)
 
-model.write().overwrite().save(str(ROOT / "output/gbt_model"))
 train.toPandas().to_csv(ROOT / "data/train.csv", index=False)
 test.toPandas().to_csv(ROOT / "data/test.csv", index=False)
 
 print("\nSaved:")
-print(f"  {ROOT / 'output/gbt_model'}  — fitted PipelineModel")
-print(f"  {ROOT / 'data/train.csv'}    — training split")
-print(f"  {ROOT / 'data/test.csv'}     — test split")
+print(f"  {ROOT / 'data/train.csv'}  — training split")
+print(f"  {ROOT / 'data/test.csv'}   — test split")
+print("  (model serialization skipped — Phase 4 re-fits from data/train.csv)")
 
 spark.stop()
