@@ -36,8 +36,8 @@ DATA_PATH = os.path.join(PROJECT_ROOT, "data", "oecd_economic_outlook.csv")
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
 
 VARIABLES = [
-    "gdpv_annpct", "unr", "cpi_ytypct", "cbgdpr",
-    "itv_annpct", "sratio", "xgsv_annpct", "mgsv_annpct",
+    "gdpv_annpct", "unr", "cbgdpr",
+    "itv_annpct", "xgsv_annpct", "mgsv_annpct",
 ]
 
 
@@ -165,21 +165,14 @@ def main():
 
     df["all_complete"] = df[VARIABLES].notna().all(axis=1)
     complete = df[df["all_complete"]]
-    print(f"\nRows with ALL 8 variables non-null: {len(complete)} of "
+    print(f"\nRows with ALL {len(VARIABLES)} variables non-null: {len(complete)} of "
           f"{len(df)} ({100*len(complete)/len(df):.1f}%)")
     print(f"Countries represented: {complete['country_code'].nunique()} of "
           f"{len(countries)}")
     print(f"Year range: {complete['year'].min()}–{complete['year'].max()}")
-
-    # Without the two worst variables
-    vars_6 = [v for v in VARIABLES if v not in ("sratio", "cpi_ytypct")]
-    df["six_complete"] = df[vars_6].notna().all(axis=1)
-    complete_6 = df[df["six_complete"]]
-    print(f"\nRows with 6 variables (dropping sratio, cpi_ytypct) non-null: "
-          f"{len(complete_6)} of {len(df)} ({100*len(complete_6)/len(df):.1f}%)")
     print(f"Countries represented: {complete_6['country_code'].nunique()} of "
           f"{len(countries)}")
-    print(f"Year range: {complete_6['year'].min()}–{complete_6['year'].max()}")
+    print(f"Year range: {complete['year'].min()}–{complete['year'].max()}")
 
     # -----------------------------------------------------------------------
     # 5. Build the Excel workbook

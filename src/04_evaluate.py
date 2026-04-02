@@ -217,43 +217,52 @@ ax_c.set_title(f"(C) GBT vs RF Baseline (excl. 2020)\n"
                f"GBT RMSE={gbt_metrics['rmse']} | RF RMSE={rf_metrics['rmse']}")
 ax_c.legend(fontsize=8)
 
-# ── Panel D: Feature importances ─────────────────────────────────────────────
+# ── Panel D: All 14 feature importances ──────────────────────────────────────
 ax_d = fig.add_subplot(gs[1, 1])
-top10_names = [x[0] for x in fi_sorted[:10]][::-1]
-top10_vals  = [x[1] for x in fi_sorted[:10]][::-1]
-bars = ax_d.barh(top10_names, top10_vals, color="steelblue", edgecolor="white")
+all_names = [x[0] for x in fi_sorted][::-1]   # all 14, ascending for barh
+all_vals  = [x[1] for x in fi_sorted][::-1]
+bars = ax_d.barh(all_names, all_vals, color="steelblue", edgecolor="white", height=0.65)
 ax_d.set_xlabel("Importance")
-ax_d.set_title("(D) Top 10 Feature Importances — GBT")
-ax_d.set_xlim(0, max(top10_vals) * 1.15)
-for bar, val in zip(bars, top10_vals):
-    ax_d.text(val + 0.002, bar.get_y() + bar.get_height() / 2,
-              f"{val:.3f}", va="center", fontsize=7.5)
+ax_d.set_title("(D) All Feature Importances — GBT")
+ax_d.set_xlim(0, max(all_vals) * 1.18)
+for bar, val in zip(bars, all_vals):
+    ax_d.text(val + 0.001, bar.get_y() + bar.get_height() / 2,
+              f"{val:.3f}", va="center", fontsize=7)
+ax_d.tick_params(axis="y", labelsize=7.5)
 
 plt.suptitle("GDP Nowcast Evaluation — GBT Pipeline\n"
              "OECD Economic Outlook, 38 countries, test period 2019–2027",
              fontsize=13, fontweight="bold", y=1.01)
 
-fig.tight_layout(rect=[0, 0.07, 1, 1])
-add_footer(fig, ["gdpv_annpct"],
-           extra_notes="2020 highlighted in red throughout (COVID-19 exogenous shock). "
-                       "Dashed line = perfect prediction.")
+fig.tight_layout(rect=[0, 0.09, 1, 1])
+
+# Footer: all 6 base variables + lag note + 2020 note
+ALL_BASE_VARS = ["gdpv_annpct", "unr", "cbgdpr", "itv_annpct", "xgsv_annpct", "mgsv_annpct"]
+add_footer(fig, ALL_BASE_VARS,
+           extra_notes="For lagged variables, the lag in years is displayed in the figure. "
+                       "2020 highlighted in red throughout (COVID-19 exogenous shock). "
+                       "Dashed line = perfect prediction.",
+           y_notes=0.04, y_source=0.01)
 
 diag_path = ROOT / "output/prediction_diagnostics.png"
 plt.savefig(diag_path, dpi=150, bbox_inches="tight")
 plt.close()
 print(f"Saved {diag_path}")
 
-# ── Feature importance standalone ───────────────────────────────────────────
-fig2, ax2 = plt.subplots(figsize=(10, 5))
-ax2.barh(top10_names, top10_vals, color="steelblue", edgecolor="white")
+# ── Feature importance standalone (all 14) ───────────────────────────────────
+fig2, ax2 = plt.subplots(figsize=(10, 6))
+ax2.barh(all_names, all_vals, color="steelblue", edgecolor="white", height=0.65)
 ax2.set_xlabel("Importance")
-ax2.set_title("Top 10 Feature Importances — GBT")
-ax2.set_xlim(0, max(top10_vals) * 1.15)
-for bar, val in zip(ax2.patches, top10_vals):
-    ax2.text(val + 0.002, bar.get_y() + bar.get_height() / 2,
+ax2.set_title("Feature Importances — GBT (all features)")
+ax2.set_xlim(0, max(all_vals) * 1.18)
+for bar, val in zip(ax2.patches, all_vals):
+    ax2.text(val + 0.001, bar.get_y() + bar.get_height() / 2,
              f"{val:.3f}", va="center", fontsize=8)
+ax2.tick_params(axis="y", labelsize=8)
 plt.tight_layout(rect=[0, 0.09, 1, 1])
-add_footer(fig2, ["gdpv_annpct"])
+add_footer(fig2, ALL_BASE_VARS,
+           extra_notes="For lagged variables, the lag in years is displayed in the figure.",
+           y_notes=0.04, y_source=0.01)
 fi_path = ROOT / "output/feature_importance.png"
 plt.savefig(fi_path, dpi=150, bbox_inches="tight")
 plt.close()
