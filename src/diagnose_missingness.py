@@ -25,7 +25,7 @@ from openpyxl.utils import get_column_letter
 
 # Allow importing labels.py from the same src/ directory
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from labels import SHORT, DEFS, add_notes
+from labels import SHORT, DEFS, add_footer
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -291,7 +291,7 @@ def main():
     ax.set_xlabel("")
     ax.set_ylabel("")
     plt.tight_layout(rect=[0, 0.06, 1, 1])
-    add_notes(fig, [v for v in VARIABLES if v in DEFS], fontsize=7, y=0.01)
+    add_footer(fig, [v for v in VARIABLES if v in DEFS])
     png_path = os.path.join(OUTPUT_DIR, "missingness_by_country_variable.png")
     plt.savefig(png_path, dpi=150, bbox_inches="tight")
     print(f"Saved: {png_path}")
@@ -373,7 +373,7 @@ def main():
 
     plt.suptitle("UNR Outlier Inspection", fontsize=13, fontweight="bold", y=1.01)
     plt.tight_layout(rect=[0, 0.06, 1, 1])
-    add_notes(fig2, ["unr"], fontsize=7, y=0.01)
+    add_footer(fig2, ["unr"])
     unr_path = os.path.join(OUTPUT_DIR, "unr_outlier_inspection.png")
     plt.savefig(unr_path, dpi=150, bbox_inches="tight")
     plt.close()
