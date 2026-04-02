@@ -19,6 +19,11 @@ from pyspark.ml import Pipeline
 from pyspark.ml.feature import StringIndexer, VectorAssembler, StandardScaler
 from pyspark.ml.regression import GBTRegressor
 import os
+from pathlib import Path
+
+# Resolve paths relative to this script, not the caller's working directory.
+# This makes %run from notebooks/ work identically to running from project root.
+ROOT = Path(__file__).resolve().parent.parent
 
 # ---------------------------------------------------------------------------
 # 1. SparkSession
@@ -35,7 +40,7 @@ spark.sparkContext.setLogLevel("WARN")
 # ---------------------------------------------------------------------------
 # 2. Load feature-engineered data
 # ---------------------------------------------------------------------------
-df = spark.read.csv("data/features.csv", header=True, inferSchema=True)
+df = spark.read.csv(str(ROOT / "data/features.csv"), header=True, inferSchema=True)
 print(f"Loaded features: {df.count()} rows × {len(df.columns)} columns")
 
 # ---------------------------------------------------------------------------
@@ -143,15 +148,15 @@ predictions.filter("country_code = 'DEU'") \
 # 8. Persist for Phase 4
 #    Save fitted model to output/; train/test as CSV for reload without re-fitting.
 # ---------------------------------------------------------------------------
-os.makedirs("output", exist_ok=True)
+os.makedirs(ROOT / "output", exist_ok=True)
 
-model.write().overwrite().save("output/gbt_model")
-train.toPandas().to_csv("data/train.csv", index=False)
-test.toPandas().to_csv("data/test.csv", index=False)
+model.write().overwrite().save(str(ROOT / "output/gbt_model"))
+train.toPandas().to_csv(ROOT / "data/train.csv", index=False)
+test.toPandas().to_csv(ROOT / "data/test.csv", index=False)
 
 print("\nSaved:")
-print("  output/gbt_model/  — fitted PipelineModel")
-print("  data/train.csv     — training split")
-print("  data/test.csv      — test split")
+print(f"  {ROOT / 'output/gbt_model'}  — fitted PipelineModel")
+print(f"  {ROOT / 'data/train.csv'}    — training split")
+print(f"  {ROOT / 'data/test.csv'}     — test split")
 
 spark.stop()
