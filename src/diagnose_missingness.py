@@ -14,6 +14,7 @@ Run: uv run python src/diagnose_missingness.py
 """
 
 import os
+import sys
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -21,6 +22,10 @@ import seaborn as sns
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
+
+# Allow importing labels.py from the same src/ directory
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from labels import SHORT, DEFS, add_notes
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -267,9 +272,16 @@ def main():
     # 6. Visualization: Country × Variable missingness heatmap
     # -----------------------------------------------------------------------
     sns.set_style("whitegrid")
+
+    # Use short labels on the x-axis; fall back to raw name if not in SHORT
+    col_labels = [SHORT.get(v, v) for v in VARIABLES]
+
     fig, ax = plt.subplots(figsize=(12, 16))
+    plot_data = miss_pct[VARIABLES].loc[countries].copy()
+    plot_data.columns = col_labels
+
     sns.heatmap(
-        miss_pct[VARIABLES].loc[countries],
+        plot_data,
         cmap="YlOrRd", vmin=0, vmax=100,
         annot=True, fmt=".0f",
         linewidths=0.3, linecolor="white",
@@ -278,9 +290,10 @@ def main():
     ax.set_title("Missing Data: % per Country × Variable", fontsize=14)
     ax.set_xlabel("")
     ax.set_ylabel("")
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0.06, 1, 1])
+    add_notes(fig, [v for v in VARIABLES if v in DEFS], fontsize=7, y=0.01)
     png_path = os.path.join(OUTPUT_DIR, "missingness_by_country_variable.png")
-    plt.savefig(png_path, dpi=150)
+    plt.savefig(png_path, dpi=150, bbox_inches="tight")
     print(f"Saved: {png_path}")
     plt.close()
 
@@ -318,6 +331,8 @@ def main():
 
     fig2, axes2 = plt.subplots(1, 2, figsize=(15, 6))
 
+    unr_short = SHORT.get("unr", "Unemployment rate")
+
     # Panel 1: distribution with sigma lines
     ax = axes2[0]
     ax.hist(df6["unr"].dropna(), bins=40, color="steelblue",
@@ -333,10 +348,10 @@ def main():
     ax.text(0.97, 0.97, f"n > {UNR_THRESHOLD}%: {n_high}",
             transform=ax.transAxes, ha="right", va="top",
             fontsize=9, color="red")
-    ax.set_xlabel("Unemployment Rate (%)")
+    ax.set_xlabel(f"{unr_short} (%)")
     ax.set_ylabel("Count")
-    ax.set_title(f"UNR Distribution (panel mean={mean_unr:.1f}%, SD={std_unr:.1f}%)\n"
-                 f"Shaded = observations > {UNR_THRESHOLD}%")
+    ax.set_title(f"{unr_short} — full panel distribution\n"
+                 f"Mean={mean_unr:.1f}%, SD={std_unr:.1f}%; shaded = obs > {UNR_THRESHOLD}%")
     ax.legend(fontsize=9)
 
     # Panel 2: time series for affected countries
@@ -351,13 +366,14 @@ def main():
     ax.axhline(UNR_THRESHOLD, color="red", linewidth=0.8, linestyle=":",
                alpha=0.6, label=f"{UNR_THRESHOLD}% threshold")
     ax.set_xlabel("Year")
-    ax.set_ylabel("Unemployment Rate (%)")
-    ax.set_title("UNR time series — countries with observations > 18%\n"
-                 "(dots = peak year; labels = episode context)")
+    ax.set_ylabel(f"{unr_short} (%)")
+    ax.set_title(f"{unr_short} — countries with observations > {UNR_THRESHOLD}%\n"
+                 "(dots = peak year)")
     ax.legend(fontsize=8, loc="upper right")
 
     plt.suptitle("UNR Outlier Inspection", fontsize=13, fontweight="bold", y=1.01)
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0.06, 1, 1])
+    add_notes(fig2, ["unr"], fontsize=7, y=0.01)
     unr_path = os.path.join(OUTPUT_DIR, "unr_outlier_inspection.png")
     plt.savefig(unr_path, dpi=150, bbox_inches="tight")
     plt.close()
