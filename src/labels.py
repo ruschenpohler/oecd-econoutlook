@@ -55,7 +55,7 @@ DEFS = {
 
 
 def add_footer(fig, vars_used: list, extra_notes: str = None,
-               fontsize: int = 7, y_notes: float = 0.025, y_source: float = 0.008):
+               fontsize: int = 7, y_notes: float = 0.025, y_source: float = None):
     """
     Add two footer lines to a figure:
       Line 1 (Notes):  variable definitions + any extra_notes string
@@ -67,8 +67,8 @@ def add_footer(fig, vars_used: list, extra_notes: str = None,
     vars_used   : list of variable keys (from DEFS) to document
     extra_notes : optional free-text appended after variable definitions
     fontsize    : font size for both lines
-    y_notes     : vertical position of Notes line in figure coordinates
-    y_source    : vertical position of Source line in figure coordinates
+    y_notes     : vertical position (top) of Notes line in figure coordinates
+    y_source    : vertical position of Source line; auto-computed from line count if None
     """
     # Build Notes line
     parts = []
@@ -81,6 +81,13 @@ def add_footer(fig, vars_used: list, extra_notes: str = None,
         notes_text = notes_text.rstrip(".") + ". " + extra_notes
 
     wrapped_notes = "\n".join(textwrap.wrap(notes_text, width=130))
+    n_lines = wrapped_notes.count("\n") + 1
+
+    # Each line ~0.013 figure-height units at fontsize 7 on a typical figure.
+    # Auto-place Source below the Notes block with a small gap.
+    line_height = fontsize * 0.0018  # empirically calibrated
+    if y_source is None:
+        y_source = y_notes - n_lines * line_height - 0.005
 
     fig.text(0.01, y_notes, wrapped_notes,
              ha="left", va="top", fontsize=fontsize,

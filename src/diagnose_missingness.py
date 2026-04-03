@@ -170,9 +170,6 @@ def main():
     print(f"Countries represented: {complete['country_code'].nunique()} of "
           f"{len(countries)}")
     print(f"Year range: {complete['year'].min()}–{complete['year'].max()}")
-    print(f"Countries represented: {complete_6['country_code'].nunique()} of "
-          f"{len(countries)}")
-    print(f"Year range: {complete['year'].min()}–{complete['year'].max()}")
 
     # -----------------------------------------------------------------------
     # 5. Build the Excel workbook

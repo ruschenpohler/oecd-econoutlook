@@ -234,7 +234,7 @@ plt.suptitle("GDP Nowcast Evaluation — GBT Pipeline\n"
              "OECD Economic Outlook, 38 countries, test period 2019–2027",
              fontsize=13, fontweight="bold", y=1.01)
 
-fig.tight_layout(rect=[0, 0.09, 1, 1])
+fig.tight_layout(rect=[0, 0.13, 1, 1])
 
 # Footer: all 6 base variables + lag note + 2020 note
 ALL_BASE_VARS = ["gdpv_annpct", "unr", "cbgdpr", "itv_annpct", "xgsv_annpct", "mgsv_annpct"]
@@ -242,7 +242,7 @@ add_footer(fig, ALL_BASE_VARS,
            extra_notes="For lagged variables, the lag in years is displayed in the figure. "
                        "2020 highlighted in red throughout (COVID-19 exogenous shock). "
                        "Dashed line = perfect prediction.",
-           y_notes=0.04, y_source=0.01)
+           y_notes=0.10)
 
 diag_path = ROOT / "output/prediction_diagnostics.png"
 plt.savefig(diag_path, dpi=150, bbox_inches="tight")
@@ -259,10 +259,10 @@ for bar, val in zip(ax2.patches, all_vals):
     ax2.text(val + 0.001, bar.get_y() + bar.get_height() / 2,
              f"{val:.3f}", va="center", fontsize=8)
 ax2.tick_params(axis="y", labelsize=8)
-plt.tight_layout(rect=[0, 0.09, 1, 1])
+plt.tight_layout(rect=[0, 0.13, 1, 1])
 add_footer(fig2, ALL_BASE_VARS,
            extra_notes="For lagged variables, the lag in years is displayed in the figure.",
-           y_notes=0.04, y_source=0.01)
+           y_notes=0.10)
 fi_path = ROOT / "output/feature_importance.png"
 plt.savefig(fi_path, dpi=150, bbox_inches="tight")
 plt.close()
