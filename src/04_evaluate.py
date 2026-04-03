@@ -5,13 +5,35 @@ Loads train/test splits, re-fits the GBT pipeline, fits an RF baseline,
 runs CrossValidator for hyperparameter tuning, evaluates both models,
 extracts feature importances, and saves all outputs.
 
-Outputs
--------
-  output/predictions.csv        — country, year, actual, gbt_pred, rf_pred
-  output/metrics.json           — RMSE/MAE/R² for both models, feature importances,
-                                  best CV hyperparameters
+Outputs (main analysis)
+-----------------------
+  output/predictions.csv            — country, year, actual, gbt_pred, rf_pred
+  output/metrics.json               — RMSE/MAE/R² for all models, feature importances,
+                                      best CV hyperparameters, COVID robustness table
   output/prediction_diagnostics.png — publication-quality 4-panel diagnostic figure
-  output/feature_importance.png      — top-10 feature importances (GBT)
+  output/feature_importance.png     — all 14 feature importances (GBT)
+
+Post-hoc COVID robustness exercise (Section 9 onwards)
+-------------------------------------------------------
+  Motivation: the test set (2019–2027) contains 2020, an exogenous shock with no
+  signal in lagged annual indicators. Two post-hoc diagnostics separate model
+  performance from COVID-specific failure:
+
+    1. Exclude-2020 metrics: re-evaluate all three models on test \ {2020}.
+       Not a fix — a diagnostic. Answers "how does the model perform in normal years?"
+
+    2. AR(1) OLS baseline: gdpv_annpct ~ gdp_lag1, country dummies via pd.get_dummies.
+       Fit on train, evaluate on test (full + excl. 2020). The standard econometric
+       benchmark for GDP nowcasting. Answers "does GBT add anything beyond naive
+       persistence?" If GBT beats AR(1) in normal years, that's the signal.
+
+  Both exercises are clearly labelled ex-post throughout. The COVID dummy approach
+  (feeding a known-shock indicator to the model) is deliberately excluded: it would
+  require ex-ante knowledge of 2020 being COVID, violating the nowcast premise.
+
+  Outputs:
+    output/robustness_covid.png     — 3-model × 2-sample metrics table + AR(1) scatter
+    output/metrics.json             — updated with 'robustness' key
 """
 
 import os
@@ -23,6 +45,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import seaborn as sns
 from pathlib import Path
+from sklearn.linear_model import LinearRegression
 
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
@@ -267,6 +290,183 @@ fi_path = ROOT / "output/feature_importance.png"
 plt.savefig(fi_path, dpi=150, bbox_inches="tight")
 plt.close()
 print(f"Saved {fi_path}")
+
+# ===========================================================================
+# 9. POST-HOC COVID ROBUSTNESS EXERCISE
+# ===========================================================================
+# This section is an explicit post-hoc diagnostic, not part of the primary
+# nowcasting pipeline. It answers two questions:
+#   Q1: How much of the negative R² is driven by 2020 alone?
+#       → Re-evaluate all models on test \ {2020}.
+#   Q2: Does GBT add value over a naive AR(1) benchmark?
+#       → Fit OLS: gdpv_annpct ~ gdp_lag1 + country dummies on train,
+#         evaluate on test (full and excl. 2020).
+# The COVID dummy approach is excluded: it would require knowing ex ante
+# that 2020 is a pandemic year, which violates the nowcast premise.
+# ===========================================================================
+
+print("\n" + "=" * 70)
+print("POST-HOC COVID ROBUSTNESS")
+print("=" * 70)
+
+# --- 9a. Collect predictions to pandas (already done: pdf) ------------------
+# pdf has columns: country_code, country_name, year, gdpv_annpct,
+#                  gbt_pred, rf_pred, error, abs_error
+pdf_no2020 = pdf[pdf["year"] != 2020].copy()
+
+def ols_metrics(y_true, y_pred):
+    """RMSE, MAE, R² from numpy arrays."""
+    resid = y_pred - y_true
+    rmse  = round(float(np.sqrt((resid ** 2).mean())), 4)
+    mae   = round(float(np.abs(resid).mean()), 4)
+    ss_res = (resid ** 2).sum()
+    ss_tot = ((y_true - y_true.mean()) ** 2).sum()
+    r2    = round(float(1 - ss_res / ss_tot), 4)
+    return {"rmse": rmse, "mae": mae, "r2": r2}
+
+# GBT and RF on test \ {2020}
+gbt_no2020 = ols_metrics(pdf_no2020["gdpv_annpct"].values,
+                         pdf_no2020["gbt_pred"].values)
+rf_no2020  = ols_metrics(pdf_no2020["gdpv_annpct"].values,
+                         pdf_no2020["rf_pred"].values)
+
+# --- 9b. AR(1) OLS baseline -------------------------------------------------
+# Model: gdpv_annpct_t = α_country + β · gdp_lag1_t + ε
+# Country fixed effects via one-hot dummies (drop_first avoids collinearity).
+# Fit on train pandas (read from CSV), evaluate on test pandas.
+
+train_pd = pd.read_csv(ROOT / "data/train.csv")
+test_pd  = pd.read_csv(ROOT / "data/test.csv")
+
+# Drop rows where gdp_lag1 or target is missing (should be none post Phase 2,
+# but guard for robustness).
+train_ar = train_pd[["gdpv_annpct", "gdp_lag1", "country_code"]].dropna()
+test_ar  = test_pd[["gdpv_annpct", "gdp_lag1", "country_code", "year"]].dropna()
+
+# Build feature matrices: gdp_lag1 + country dummies
+X_train = pd.get_dummies(train_ar[["gdp_lag1", "country_code"]],
+                         columns=["country_code"], drop_first=True)
+X_test_full = pd.get_dummies(test_ar[["gdp_lag1", "country_code"]],
+                             columns=["country_code"], drop_first=True)
+
+# Align columns: test may lack countries that appeared only in train
+X_train, X_test_full = X_train.align(X_test_full, join="left", axis=1, fill_value=0)
+
+y_train     = train_ar["gdpv_annpct"].values
+y_test_full = test_ar["gdpv_annpct"].values
+
+ar1 = LinearRegression().fit(X_train, y_train)
+ar1_pred_full = ar1.predict(X_test_full)
+
+ar1_full   = ols_metrics(y_test_full, ar1_pred_full)
+
+# Excl. 2020
+mask_no2020   = test_ar["year"].values != 2020
+ar1_no2020    = ols_metrics(y_test_full[mask_no2020], ar1_pred_full[mask_no2020])
+
+print(f"\nAR(1) OLS — full test:      RMSE={ar1_full['rmse']},  R²={ar1_full['r2']}")
+print(f"AR(1) OLS — excl. 2020:     RMSE={ar1_no2020['rmse']}, R²={ar1_no2020['r2']}")
+print(f"GBT       — excl. 2020:     RMSE={gbt_no2020['rmse']}, R²={gbt_no2020['r2']}")
+print(f"RF        — excl. 2020:     RMSE={rf_no2020['rmse']},  R²={rf_no2020['r2']}")
+
+# --- 9c. Save robustness metrics to metrics.json ----------------------------
+robustness = {
+    "note": ("Post-hoc exercise. Excl-2020 is a diagnostic, not a correction. "
+             "AR(1) is OLS with gdp_lag1 + country dummies, fit on train set."),
+    "full_test": {
+        "gbt": gbt_metrics, "rf": rf_metrics, "ar1": ar1_full
+    },
+    "excl_2020": {
+        "gbt": gbt_no2020, "rf": rf_no2020, "ar1": ar1_no2020
+    },
+}
+metrics_out["robustness"] = robustness
+with open(ROOT / "output/metrics.json", "w") as f:
+    json.dump(metrics_out, f, indent=2)
+print("\nUpdated output/metrics.json with robustness key.")
+
+# --- 9d. Robustness figure: 2-panel -----------------------------------------
+# Panel A: metrics table (3 models × 2 samples) as a styled heatmap-table
+# Panel B: AR(1) predicted vs actual scatter (full test, 2020 in red)
+# ─────────────────────────────────────────────────────────────────────────────
+
+fig_r, (ax_t, ax_s) = plt.subplots(1, 2, figsize=(14, 6))
+
+# ── Panel A: metrics table ───────────────────────────────────────────────────
+# Build a tidy DataFrame for display
+table_data = {
+    ("Full test\n(2019–2027)", "RMSE"):  [gbt_metrics["rmse"],  rf_metrics["rmse"],  ar1_full["rmse"]],
+    ("Full test\n(2019–2027)", "R²"):    [gbt_metrics["r2"],    rf_metrics["r2"],    ar1_full["r2"]],
+    ("Excl. 2020\n(post-hoc)",  "RMSE"): [gbt_no2020["rmse"],   rf_no2020["rmse"],   ar1_no2020["rmse"]],
+    ("Excl. 2020\n(post-hoc)",  "R²"):   [gbt_no2020["r2"],     rf_no2020["r2"],     ar1_no2020["r2"]],
+}
+tdf = pd.DataFrame(table_data, index=["GBT (CV)", "RF", "AR(1) OLS"])
+tdf.columns = pd.MultiIndex.from_tuples(tdf.columns)
+
+# Render as a matplotlib table (no seaborn needed)
+ax_t.axis("off")
+col_labels = ["Full test RMSE", "Full test R²", "Excl. 2020 RMSE", "Excl. 2020 R²"]
+cell_text  = [[f"{v:.4f}" for v in row] for row in tdf.values]
+
+tbl = ax_t.table(
+    cellText=cell_text,
+    rowLabels=tdf.index.tolist(),
+    colLabels=col_labels,
+    cellLoc="center", rowLoc="center", loc="center",
+)
+tbl.auto_set_font_size(False)
+tbl.set_fontsize(10)
+tbl.scale(1.3, 2.2)
+
+# Colour header row
+for (r, c), cell in tbl.get_celld().items():
+    if r == 0:
+        cell.set_facecolor("#2c5f8a")
+        cell.set_text_props(color="white", fontweight="bold")
+    elif c == -1:
+        cell.set_facecolor("#e8f0f7")
+        cell.set_text_props(fontweight="bold")
+    elif r % 2 == 0:
+        cell.set_facecolor("#f5f9fc")
+
+ax_t.set_title("(A) Model Comparison: Full Test vs Excl. 2020\n"
+               "(Post-hoc diagnostic — excl. 2020 not a corrected result)",
+               fontsize=10, pad=12)
+
+# ── Panel B: AR(1) scatter ───────────────────────────────────────────────────
+is_2020_ar = test_ar["year"].values == 2020
+
+ax_s.scatter(y_test_full[~is_2020_ar], ar1_pred_full[~is_2020_ar],
+             alpha=0.5, s=18, color="steelblue", label="2019–2027 (excl. 2020)")
+ax_s.scatter(y_test_full[is_2020_ar],  ar1_pred_full[is_2020_ar],
+             alpha=0.9, s=50, color="crimson", label="2020 (COVID)", zorder=5)
+
+lims_ar = [min(y_test_full.min(), ar1_pred_full.min()) - 1,
+           max(y_test_full.max(), ar1_pred_full.max()) + 1]
+ax_s.plot(lims_ar, lims_ar, "k--", linewidth=0.8, alpha=0.5)
+ax_s.set_xlim(lims_ar); ax_s.set_ylim(lims_ar)
+ax_s.set_xlabel(f"Actual {SHORT['gdpv_annpct']} (%)")
+ax_s.set_ylabel(f"Predicted {SHORT['gdpv_annpct']} (%)")
+ax_s.set_title(f"(B) AR(1) OLS: Predicted vs Actual\n"
+               f"RMSE={ar1_full['rmse']}, R²={ar1_full['r2']} (full test)")
+ax_s.legend(fontsize=8)
+
+plt.suptitle("Post-hoc COVID Robustness — GDP Nowcasting\n"
+             "OECD Economic Outlook, 38 countries, test period 2019–2027",
+             fontsize=12, fontweight="bold", y=1.02)
+
+fig_r.tight_layout(rect=[0, 0.13, 1, 1])
+add_footer(fig_r, ["gdpv_annpct", "gdp_lag1"],
+           extra_notes=("AR(1) OLS: gdpv_annpct ~ gdp_lag1 + country fixed effects "
+                        "(one-hot dummies, trained on pre-2019 data). "
+                        "Excl. 2020 rows are removed from evaluation only — "
+                        "model was not retrained. 2020 in red throughout."),
+           y_notes=0.10)
+
+rob_path = ROOT / "output/robustness_covid.png"
+plt.savefig(rob_path, dpi=150, bbox_inches="tight")
+plt.close()
+print(f"Saved {rob_path}")
 
 spark.stop()
 print("\nPhase 4 complete.")
