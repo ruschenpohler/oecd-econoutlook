@@ -35,12 +35,13 @@ def main():
     # In production this would be .master("yarn") or similar.
     # spark.sql.shuffle.partitions = 8: default is 200, which is overkill
     # for a ~1,400-row dataset and creates unnecessary overhead.
-    spark = (SparkSession.builder
-        .master("local[*]")
+    spark = (
+        SparkSession.builder.master("local[*]")
         .appName("OECD-GDP-Nowcast-FeatureEng")
         .config("spark.driver.memory", "2g")
         .config("spark.sql.shuffle.partitions", "8")
-        .getOrCreate())
+        .getOrCreate()
+    )
 
     # ------------------------------------------------------------------
     # 2. Read the cleaned CSV into a Spark DataFrame
@@ -51,8 +52,10 @@ def main():
     df = spark.read.csv(INPUT_PATH, header=True, inferSchema=True)
     raw_count = df.count()
     n_countries = df.select("country_code").distinct().count()
-    print(f"Loaded: {raw_count:,} rows, {n_countries} countries, "
-          f"{df.select('year').distinct().count()} years")
+    print(
+        f"Loaded: {raw_count:,} rows, {n_countries} countries, "
+        f"{df.select('year').distinct().count()} years"
+    )
     print(f"Columns: {df.columns}\n")
 
     # ------------------------------------------------------------------
@@ -95,8 +98,10 @@ def main():
 
     final_count = df.count()
     dropped = raw_count - final_count
-    print(f"Dropped {dropped} rows with null values "
-          f"(expected ≥ {2 * n_countries} from lag-induced nulls)")
+    print(
+        f"Dropped {dropped} rows with null values "
+        f"(expected ≥ {2 * n_countries} from lag-induced nulls)"
+    )
     print(f"Final: {final_count:,} rows × {len(df.columns)} columns")
 
     # Print the schema so we can see all the new columns and their types
@@ -112,8 +117,7 @@ def main():
     df.toPandas().to_csv(OUTPUT_PATH, index=False)
     print(f"\nSaved to {OUTPUT_PATH}")
 
-    # Don't stop the SparkSession — the notebook will reuse it via getOrCreate()
-    spark.stop()
+    # SparkSession stays alive — notebook reuses it via getOrCreate()
 
 
 if __name__ == "__main__":

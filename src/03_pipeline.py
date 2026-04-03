@@ -28,12 +28,13 @@ ROOT = Path(__file__).resolve().parent.parent
 # ---------------------------------------------------------------------------
 # 1. SparkSession
 # ---------------------------------------------------------------------------
-spark = (SparkSession.builder
-    .master("local[*]")
+spark = (
+    SparkSession.builder.master("local[*]")
     .appName("OECD-GDP-Nowcast-Phase3")
     .config("spark.driver.memory", "2g")
     .config("spark.sql.shuffle.partitions", "8")
-    .getOrCreate())
+    .getOrCreate()
+)
 
 spark.sparkContext.setLogLevel("WARN")
 
@@ -73,10 +74,14 @@ for col in FEATURE_COLS:
 # We hold out 2019–2027 as test (post-GFC recovery → COVID → post-COVID).
 # ---------------------------------------------------------------------------
 train = df.filter(F.col("year") < 2019)
-test  = df.filter(F.col("year") >= 2019)
+test = df.filter(F.col("year") >= 2019)
 
-print(f"\nTrain: {train.count()} rows ({train.agg(F.min('year')).first()[0]}–{train.agg(F.max('year')).first()[0]})")
-print(f"Test:  {test.count()} rows ({test.agg(F.min('year')).first()[0]}–{test.agg(F.max('year')).first()[0]})")
+print(
+    f"\nTrain: {train.count()} rows ({train.agg(F.min('year')).first()[0]}–{train.agg(F.max('year')).first()[0]})"
+)
+print(
+    f"Test:  {test.count()} rows ({test.agg(F.min('year')).first()[0]}–{test.agg(F.max('year')).first()[0]})"
+)
 
 # ---------------------------------------------------------------------------
 # 5. Pipeline stages
@@ -98,30 +103,19 @@ print(f"Test:  {test.count()} rows ({test.agg(F.min('year')).first()[0]}–{test
 #   Estimator: returns a GBTRegressionModel (Transformer) after fitting.
 # ---------------------------------------------------------------------------
 indexer = StringIndexer(
-    inputCol="country_code",
-    outputCol="country_idx",
-    handleInvalid="keep"
+    inputCol="country_code", outputCol="country_idx", handleInvalid="keep"
 )
 
 assembler = VectorAssembler(
-    inputCols=FEATURE_COLS,
-    outputCol="features_raw",
-    handleInvalid="skip"
+    inputCols=FEATURE_COLS, outputCol="features_raw", handleInvalid="skip"
 )
 
 scaler = StandardScaler(
-    inputCol="features_raw",
-    outputCol="features",
-    withStd=True,
-    withMean=False
+    inputCol="features_raw", outputCol="features", withStd=True, withMean=False
 )
 
 gbt = GBTRegressor(
-    featuresCol="features",
-    labelCol="gdpv_annpct",
-    maxIter=100,
-    maxDepth=4,
-    seed=42
+    featuresCol="features", labelCol="gdpv_annpct", maxIter=100, maxDepth=4, seed=42
 )
 
 pipeline = Pipeline(stages=[indexer, assembler, scaler, gbt])
@@ -140,9 +134,9 @@ print("Pipeline fitted.")
 predictions = model.transform(test)
 print(f"\nTest set predictions: {predictions.count()} rows")
 print("Sample predictions (DEU):")
-predictions.filter("country_code = 'DEU'") \
-    .select("country_code", "year", "gdpv_annpct", F.round("prediction", 2).alias("predicted")) \
-    .orderBy("year").show()
+predictions.filter("country_code = 'DEU'").select(
+    "country_code", "year", "gdpv_annpct", F.round("prediction", 2).alias("predicted")
+).orderBy("year").show()
 
 # ---------------------------------------------------------------------------
 # 8. Persist for Phase 4
@@ -161,4 +155,4 @@ print(f"  {ROOT / 'data/train.csv'}  — training split")
 print(f"  {ROOT / 'data/test.csv'}   — test split")
 print("  (model serialization skipped — Phase 4 re-fits from data/train.csv)")
 
-spark.stop()
+# SparkSession stays alive — notebook reuses it via getOrCreate()
