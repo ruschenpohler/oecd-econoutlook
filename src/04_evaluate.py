@@ -604,4 +604,9 @@ add_footer(
 )
 
 rob_path = ROOT / "output/robustness_covid.png"
-plt.savefi
+plt.savefig(rob_path, dpi=150, bbox_inches="tight")
+plt.close()
+print(f"Saved {rob_path}")
+
+spark.stop()
+print("\nPhase 4 complete.")
