@@ -28,11 +28,15 @@ ROOT = Path(__file__).resolve().parent.parent
 # ---------------------------------------------------------------------------
 # 1. SparkSession
 # ---------------------------------------------------------------------------
+import os as _os
+_os.environ.setdefault("SPARK_LOCAL_IP", "127.0.0.1")
+
 spark = (
     SparkSession.builder.master("local[*]")
     .appName("OECD-GDP-Nowcast-Phase3")
     .config("spark.driver.memory", "2g")
     .config("spark.sql.shuffle.partitions", "8")
+    .config("spark.driver.host", "127.0.0.1")
     .getOrCreate()
 )
 

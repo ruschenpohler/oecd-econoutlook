@@ -22,11 +22,15 @@ from pyspark.ml.evaluation import RegressionEvaluator
 
 ROOT = Path(__file__).resolve().parent.parent
 
+import os as _os
+_os.environ.setdefault("SPARK_LOCAL_IP", "127.0.0.1")
+
 spark = (
     SparkSession.builder.master("local[*]")
     .appName("AR1-Robustness")
     .config("spark.driver.memory", "2g")
     .config("spark.sql.shuffle.partitions", "8")
+    .config("spark.driver.host", "127.0.0.1")
     .getOrCreate()
 )
 spark.sparkContext.setLogLevel("WARN")

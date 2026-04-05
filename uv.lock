@@ -1769,7 +1769,7 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.7.0" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pandas", specifier = ">=2.0.0" },
-    { name = "pyspark", specifier = ">=4.1.1" },
+    { name = "pyspark", specifier = ">=3.5,<4.0" },
     { name = "requests", specifier = ">=2.31.0" },
     { name = "seaborn", specifier = ">=0.12.0" },
 ]
@@ -2181,12 +2181,12 @@ wheels = [
 
 [[package]]
 name = "pyspark"
-version = "4.1.1"
+version = "3.5.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "py4j" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/19/bf/58ee13add151469c25825b7125bbf62c3bdcec05eec4d458fcb5c5516066/pyspark-4.1.1.tar.gz", hash = "sha256:77f78984aa84fbe865c717dd37b49913b4e5c97d76ef6824f932f1aefa6621ec", size = 455359625, upload-time = "2026-01-09T09:38:38.28Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4e/18/6bb8c4e857122fc898f32336cb6e9e98415a7802c2a3738e907b4bd60953/pyspark-3.5.4.tar.gz", hash = "sha256:1c2926d63020902163f58222466adf6f8016f6c43c1f319b8e7a71dbaa05fc51", size = 317313656 }
 
 [[package]]
 name = "python-dateutil"

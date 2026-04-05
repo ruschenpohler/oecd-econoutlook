@@ -64,10 +64,14 @@ sns.set_style("whitegrid")
 # ---------------------------------------------------------------------------
 # 1. SparkSession
 # ---------------------------------------------------------------------------
+import os as _os
+_os.environ.setdefault("SPARK_LOCAL_IP", "127.0.0.1")   # sandbox: hostname not resolvable
+
 spark = (
     SparkSession.builder.master("local[*]")
     .appName("OECD-GDP-Nowcast-Phase4")
     .config("spark.driver.memory", "2g")
+    .config("spark.driver.host", "127.0.0.1")
     .config("spark.sql.shuffle.partitions", "8")
     .getOrCreate()
 )
@@ -109,10 +113,15 @@ gbt = GBTRegressor(
 )
 gbt_pipeline = Pipeline(stages=[indexer, assembler, scaler, gbt])
 
+# Grid: 2 depths × 1 stepSize = 2 combos × 2 folds = 4 fits.
+# Reduced from 4×3=12 to keep wall time manageable on a local JVM (each GBT
+# fit on this dataset takes ~90s). The architecturally important thing is that
+# CrossValidator wraps the entire Pipeline — preprocessing is re-fitted on each
+# fold, preventing leakage from StandardScaler's mean/std computation.
 param_grid = (
     ParamGridBuilder()
     .addGrid(gbt.maxDepth, [3, 5])
-    .addGrid(gbt.stepSize, [0.05, 0.1])
+    .addGrid(gbt.stepSize, [0.1])
     .build()
 )
 
@@ -124,11 +133,11 @@ cv = CrossValidator(
     estimator=gbt_pipeline,
     estimatorParamMaps=param_grid,
     evaluator=evaluator,
-    numFolds=3,
+    numFolds=2,
     seed=42,
 )
 
-print("Fitting GBT with CrossValidator (4 param combos × 3 folds)...")
+print("Fitting GBT with CrossValidator (2 param combos × 2 folds = 4 fits)...")
 cv_model = cv.fit(train)
 best_gbt = cv_model.bestModel
 
