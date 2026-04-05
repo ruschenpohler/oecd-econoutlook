@@ -77,27 +77,21 @@ spark.sparkContext.setLogLevel("WARN")
 # ---------------------------------------------------------------------------
 # 2. Load data and define pipeline stages
 # ---------------------------------------------------------------------------
+print("=" * 60)
+print("STEP 1/6: Loading train/test data from CSV")
+print("=" * 60)
 train = spark.read.csv(str(ROOT / "data/train.csv"), header=True, inferSchema=True)
 test = spark.read.csv(str(ROOT / "data/test.csv"), header=True, inferSchema=True)
-
 print(f"Train: {train.count()} rows | Test: {test.count()} rows")
 
-MACRO_VARS = ["unr", "cbgdpr", "itv_annpct", "xgsv_annpct", "mgsv_annpct"]
-lag_cols = [f"{v}_lag{k}" for v in MACRO_VARS for k in [1, 2]]
-FEATURE_COLS = ["country_idx"] + ["gdp_lag1", "gdp_lag2", "gdp_accel"] + lag_cols
-FEATURE_NAMES = [SHORT.get(c, c) for c in FEATURE_COLS]
-
-indexer = StringIndexer(
-    inputCol="country_code", outputCol="country_idx", handleInvalid="keep"
-)
-assembler = VectorAssembler(
-    inputCols=FEATURE_COLS, outputCol="features_raw", handleInvalid="skip"
-)
-scaler = StandardScaler(
-    inputCol="features_raw", outputCol="features", withStd=True, withMean=False
-)
-
 # ---------------------------------------------------------------------------
+# 3. Gradient Boosted Tree with CrossValidator
+# ---------------------------------------------------------------------------
+print("\n" + "=" * 60)
+print(
+    "STEP 2/6: Building ML pipeline (StringIndexer → VectorAssembler → StandardScaler → GBTRegressor)"
+)
+print("=" * 60)
 # 3. GBT pipeline + CrossValidator
 # ---------------------------------------------------------------------------
 gbt = GBTRegressor(
@@ -135,6 +129,9 @@ print(f"CV avg RMSE per combo: {[round(x, 3) for x in cv_model.avgMetrics]}")
 # ---------------------------------------------------------------------------
 # 4. Random Forest baseline
 # ---------------------------------------------------------------------------
+print("\n" + "=" * 60)
+print("STEP 3/6: Fitting Random Forest baseline")
+print("=" * 60)
 rf = RandomForestRegressor(
     featuresCol="features", labelCol="gdpv_annpct", numTrees=100, maxDepth=5, seed=42
 )
@@ -179,6 +176,9 @@ print(
 # ---------------------------------------------------------------------------
 # 6. Feature importances
 # ---------------------------------------------------------------------------
+print("\n" + "=" * 60)
+print("STEP 4/6: Computing feature importances")
+print("=" * 60)
 fi_vec = best_gbt.stages[-1].featureImportances
 fi_dict = {
     FEATURE_NAMES[i]: round(float(fi_vec[i]), 4) for i in range(len(FEATURE_COLS))
@@ -192,6 +192,9 @@ for name, imp in fi_sorted[:10]:
 # ---------------------------------------------------------------------------
 # 7. Save outputs
 # ---------------------------------------------------------------------------
+print("\n" + "=" * 60)
+print("STEP 6/6: Saving outputs to CSV and JSON")
+print("=" * 60)
 os.makedirs(ROOT / "output", exist_ok=True)
 
 pdf = preds_joined.toPandas().sort_values(["country_code", "year"])
@@ -328,7 +331,7 @@ plt.suptitle(
     y=1.01,
 )
 
-fig.tight_layout(rect=[0, 0.13, 1, 1])
+fig.tight_layout(rect=[0, 0.15, 1, 1])
 
 # Footer: all 6 base variables + lag note + 2020 note
 ALL_BASE_VARS = [
@@ -345,7 +348,7 @@ add_footer(
     extra_notes="For lagged variables, the lag in years is displayed in the figure. "
     "2020 highlighted in red throughout (COVID-19 exogenous shock). "
     "Dashed line = perfect prediction.",
-    y_notes=0.10,
+    y_notes=0.03,
 )
 
 diag_path = ROOT / "output/prediction_diagnostics.png"
@@ -425,6 +428,10 @@ rf_no2020 = ols_metrics(pdf_no2020["gdpv_annpct"].values, pdf_no2020["rf_pred"].
 # Model: gdpv_annpct_t = α_country + β · gdp_lag1_t + ε
 # Country fixed effects via StringIndexer (Spark handles one-hot internally).
 # Fit on train Spark DF, evaluate on test Spark DF.
+
+print("\n" + "=" * 60)
+print("STEP 5/6: Fitting AR(1) OLS baseline")
+print("=" * 60)
 
 train_ar = train.select("gdpv_annpct", "gdp_lag1", "country_code", "year").dropna()
 test_ar = test.select("gdpv_annpct", "gdp_lag1", "country_code", "year").dropna()
