@@ -85,15 +85,25 @@ test = spark.read.csv(str(ROOT / "data/test.csv"), header=True, inferSchema=True
 print(f"Train: {train.count()} rows | Test: {test.count()} rows")
 
 # ---------------------------------------------------------------------------
-# 3. Gradient Boosted Tree with CrossValidator
+# 3. Feature column definitions and pipeline stage constructors
+# ---------------------------------------------------------------------------
+MACRO_VARS   = ["unr", "cbgdpr", "itv_annpct", "xgsv_annpct", "mgsv_annpct"]
+lag_cols     = [f"{v}_lag{k}" for v in MACRO_VARS for k in [1, 2]]
+ar_cols      = ["gdp_lag1", "gdp_lag2", "gdp_accel"]
+FEATURE_COLS  = ["country_idx"] + ar_cols + lag_cols          # 14 features total
+FEATURE_NAMES = [SHORT.get(c, c) for c in FEATURE_COLS]
+
+indexer  = StringIndexer(inputCol="country_code", outputCol="country_idx", handleInvalid="keep")
+assembler = VectorAssembler(inputCols=FEATURE_COLS, outputCol="features_raw", handleInvalid="skip")
+scaler   = StandardScaler(inputCol="features_raw", outputCol="features", withStd=True, withMean=False)
+
+# ---------------------------------------------------------------------------
+# 4. GBT pipeline + CrossValidator
 # ---------------------------------------------------------------------------
 print("\n" + "=" * 60)
-print(
-    "STEP 2/6: Building ML pipeline (StringIndexer → VectorAssembler → StandardScaler → GBTRegressor)"
-)
+print("STEP 2/6: Building ML pipeline (StringIndexer → VectorAssembler → StandardScaler → GBTRegressor)")
 print("=" * 60)
-# 3. GBT pipeline + CrossValidator
-# ---------------------------------------------------------------------------
+
 gbt = GBTRegressor(
     featuresCol="features", labelCol="gdpv_annpct", maxIter=100, maxDepth=4, seed=42
 )
