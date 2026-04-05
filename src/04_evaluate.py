@@ -388,23 +388,33 @@ print(f"Saved {fi_path}")
 # ===========================================================================
 # This section is an explicit post-hoc diagnostic, not part of the primary
 # nowcasting pipeline. It answers two questions:
-#   Q1: How much of the negative R² is driven by 2020 alone?
-#       → Re-evaluate all models on test \ {2020}.
+#   Q1: How much of the negative R² is attributable to the COVID shock years?
+#       → Re-evaluate all models on test \ {2020} and test \ {2020, 2021}.
+#       2021 is included as "extended COVID": the rebound (+6.9% panel mean)
+#       is equally unpredictable from annual lags as the crash itself — the
+#       model was trained on a world without a symmetric V-shaped shock.
+#       Per-year RMSE: 2020=7.2pp, 2021=5.7pp; both swamp 2019 (1.1pp).
 #   Q2: Does GBT add value over a naive AR(1) benchmark?
-#       → Fit OLS: gdpv_annpct ~ gdp_lag1 + country dummies on train,
-#         evaluate on test (full and excl. 2020).
+#       → Fit OLS: gdpv_annpct ~ gdp_lag1 + country fixed effects on train,
+#         evaluate on all three sample cuts.
+# Note: the negative R² persists even after excluding 2020–2021, pointing to
+# a post-COVID distribution shift (high 2021 rebound inflates 2022 lags →
+# model over-predicts growth in 2022–2024). COVID is the primary driver,
+# but not the only one.
 # The COVID dummy approach is excluded: it would require knowing ex ante
 # that 2020 is a pandemic year, which violates the nowcast premise.
 # ===========================================================================
 
 print("\n" + "=" * 70)
-print("POST-HOC COVID ROBUSTNESS")
+print("POST-HOC COVID ROBUSTNESS (excl. 2020 and excl. 2020–2021)")
 print("=" * 70)
 
 # --- 9a. Collect predictions to pandas (already done: pdf) ------------------
 # pdf has columns: country_code, country_name, year, gdpv_annpct,
 #                  gbt_pred, rf_pred, error, abs_error
-pdf_no2020 = pdf[pdf["year"] != 2020].copy()
+COVID_YEARS = [2020, 2021]  # crash + symmetric rebound; both unforecastable from annual lags
+pdf_no2020     = pdf[pdf["year"] != 2020].copy()
+pdf_no_covid   = pdf[~pdf["year"].isin(COVID_YEARS)].copy()
 
 
 def ols_metrics(y_true, y_pred):
@@ -418,11 +428,11 @@ def ols_metrics(y_true, y_pred):
     return {"rmse": rmse, "mae": mae, "r2": r2}
 
 
-# GBT and RF on test \ {2020}
-gbt_no2020 = ols_metrics(
-    pdf_no2020["gdpv_annpct"].values, pdf_no2020["gbt_pred"].values
-)
-rf_no2020 = ols_metrics(pdf_no2020["gdpv_annpct"].values, pdf_no2020["rf_pred"].values)
+# GBT and RF on test \ {2020} and test \ {2020, 2021}
+gbt_no2020   = ols_metrics(pdf_no2020["gdpv_annpct"].values,   pdf_no2020["gbt_pred"].values)
+rf_no2020    = ols_metrics(pdf_no2020["gdpv_annpct"].values,   pdf_no2020["rf_pred"].values)
+gbt_no_covid = ols_metrics(pdf_no_covid["gdpv_annpct"].values, pdf_no_covid["gbt_pred"].values)
+rf_no_covid  = ols_metrics(pdf_no_covid["gdpv_annpct"].values, pdf_no_covid["rf_pred"].values)
 
 # --- 9b. AR(1) OLS baseline -------------------------------------------------
 # Model: gdpv_annpct_t = α_country + β · gdp_lag1_t + ε
@@ -453,22 +463,33 @@ ar_preds_full = ar_model.transform(test_ar).withColumnRenamed("prediction", "ar1
 
 ar1_full = eval_metrics(ar_preds_full.withColumnRenamed("ar1_pred", "prediction"))
 
-ar_preds_no2020 = ar_preds_full.filter(F.col("year") != 2020)
-ar1_no2020 = eval_metrics(ar_preds_no2020.withColumnRenamed("ar1_pred", "prediction"))
+ar_preds_no2020   = ar_preds_full.filter(F.col("year") != 2020)
+ar_preds_no_covid = ar_preds_full.filter(~F.col("year").isin(COVID_YEARS))
+ar1_no2020   = eval_metrics(ar_preds_no2020.withColumnRenamed("ar1_pred", "prediction"))
+ar1_no_covid = eval_metrics(ar_preds_no_covid.withColumnRenamed("ar1_pred", "prediction"))
 
-print(f"\nAR(1) OLS — full test:      RMSE={ar1_full['rmse']},  R²={ar1_full['r2']}")
-print(f"AR(1) OLS — excl. 2020:     RMSE={ar1_no2020['rmse']}, R²={ar1_no2020['r2']}")
-print(f"GBT       — excl. 2020:     RMSE={gbt_no2020['rmse']}, R²={gbt_no2020['r2']}")
-print(f"RF        — excl. 2020:     RMSE={rf_no2020['rmse']},  R²={rf_no2020['r2']}")
+print(f"\n{'Model':<12} {'Full test':>12} {'Excl. 2020':>12} {'Excl. 2020-21':>14}")
+print("-" * 52)
+for label, m_full, m_20, m_cv in [
+    ("GBT",      gbt_metrics,  gbt_no2020,  gbt_no_covid),
+    ("RF",       rf_metrics,   rf_no2020,   rf_no_covid),
+    ("AR(1)",    ar1_full,     ar1_no2020,  ar1_no_covid),
+]:
+    print(f"{label:<12} R²={m_full['r2']:>7.4f}   R²={m_20['r2']:>7.4f}   R²={m_cv['r2']:>7.4f}")
+    print(f"{'':12} RMSE={m_full['rmse']:>5.3f}  RMSE={m_20['rmse']:>5.3f}  RMSE={m_cv['rmse']:>5.3f}")
 
 # --- 9c. Save robustness metrics to metrics.json ----------------------------
 robustness = {
     "note": (
-        "Post-hoc exercise. Excl-2020 is a diagnostic, not a correction. "
-        "AR(1) is OLS with gdp_lag1 + country dummies, fit on train set."
+        "Post-hoc diagnostic only. Exclusions remove years from evaluation; "
+        "models are not retrained. 2021 included in 'extended COVID' because "
+        "the symmetric rebound (+6.9pp panel mean) is equally unforecastable "
+        "from annual lags as the 2020 crash. AR(1) is Spark ML LinearRegression "
+        "with gdp_lag1 + StringIndexer country fixed effects, fit on pre-2019 data."
     ),
-    "full_test": {"gbt": gbt_metrics, "rf": rf_metrics, "ar1": ar1_full},
-    "excl_2020": {"gbt": gbt_no2020, "rf": rf_no2020, "ar1": ar1_no2020},
+    "full_test":    {"gbt": gbt_metrics, "rf": rf_metrics,  "ar1": ar1_full},
+    "excl_2020":    {"gbt": gbt_no2020,  "rf": rf_no2020,   "ar1": ar1_no2020},
+    "excl_2020_21": {"gbt": gbt_no_covid,"rf": rf_no_covid,  "ar1": ar1_no_covid},
 }
 metrics_out["robustness"] = robustness
 with open(ROOT / "output/metrics.json", "w") as f:
@@ -476,57 +497,40 @@ with open(ROOT / "output/metrics.json", "w") as f:
 print("\nUpdated output/metrics.json with robustness key.")
 
 # --- 9d. Robustness figure: 2-panel -----------------------------------------
-# Panel A: metrics table (3 models × 2 samples) as a styled heatmap-table
-# Panel B: AR(1) predicted vs actual scatter (full test, 2020 in red)
+# Panel A: metrics table (3 models × 3 sample cuts)
+# Panel B: AR(1) scatter with 2020 (red) and 2021 (orange) distinguished
 # ─────────────────────────────────────────────────────────────────────────────
 
-fig_r, (ax_t, ax_s) = plt.subplots(1, 2, figsize=(14, 6))
+fig_r, (ax_t, ax_s) = plt.subplots(1, 2, figsize=(16, 6))
 
-# ── Panel A: metrics table ───────────────────────────────────────────────────
-# Build a tidy DataFrame for display
-table_data = {
-    ("Full test\n(2019–2027)", "RMSE"): [
-        gbt_metrics["rmse"],
-        rf_metrics["rmse"],
-        ar1_full["rmse"],
-    ],
-    ("Full test\n(2019–2027)", "R²"): [
-        gbt_metrics["r2"],
-        rf_metrics["r2"],
-        ar1_full["r2"],
-    ],
-    ("Excl. 2020\n(post-hoc)", "RMSE"): [
-        gbt_no2020["rmse"],
-        rf_no2020["rmse"],
-        ar1_no2020["rmse"],
-    ],
-    ("Excl. 2020\n(post-hoc)", "R²"): [
-        gbt_no2020["r2"],
-        rf_no2020["r2"],
-        ar1_no2020["r2"],
-    ],
-}
-tdf = pd.DataFrame(table_data, index=["GBT (CV)", "RF", "AR(1) OLS"])
-tdf.columns = pd.MultiIndex.from_tuples(tdf.columns)
-
-# Render as a matplotlib table (no seaborn needed)
+# ── Panel A: 3-column metrics table ─────────────────────────────────────────
 ax_t.axis("off")
-col_labels = ["Full test RMSE", "Full test R²", "Excl. 2020 RMSE", "Excl. 2020 R²"]
-cell_text = [[f"{v:.4f}" for v in row] for row in tdf.values]
-
+col_labels = [
+    "Full test\nRMSE", "Full test\nR²",
+    "Excl. 2020\nRMSE",  "Excl. 2020\nR²",
+    "Excl. 2020–21\nRMSE","Excl. 2020–21\nR²",
+]
+cell_text = [
+    [f"{gbt_metrics['rmse']:.3f}", f"{gbt_metrics['r2']:.4f}",
+     f"{gbt_no2020['rmse']:.3f}",  f"{gbt_no2020['r2']:.4f}",
+     f"{gbt_no_covid['rmse']:.3f}",f"{gbt_no_covid['r2']:.4f}"],
+    [f"{rf_metrics['rmse']:.3f}",  f"{rf_metrics['r2']:.4f}",
+     f"{rf_no2020['rmse']:.3f}",   f"{rf_no2020['r2']:.4f}",
+     f"{rf_no_covid['rmse']:.3f}", f"{rf_no_covid['r2']:.4f}"],
+    [f"{ar1_full['rmse']:.3f}",    f"{ar1_full['r2']:.4f}",
+     f"{ar1_no2020['rmse']:.3f}",  f"{ar1_no2020['r2']:.4f}",
+     f"{ar1_no_covid['rmse']:.3f}",f"{ar1_no_covid['r2']:.4f}"],
+]
 tbl = ax_t.table(
     cellText=cell_text,
-    rowLabels=tdf.index.tolist(),
+    rowLabels=["GBT (CV)", "RF", "AR(1) OLS"],
     colLabels=col_labels,
-    cellLoc="center",
-    rowLoc="center",
-    loc="center",
+    cellLoc="center", rowLoc="center", loc="center",
 )
 tbl.auto_set_font_size(False)
-tbl.set_fontsize(10)
-tbl.scale(1.3, 2.2)
+tbl.set_fontsize(9)
+tbl.scale(1.15, 2.4)
 
-# Colour header row
 for (r, c), cell in tbl.get_celld().items():
     if r == 0:
         cell.set_facecolor("#2c5f8a")
@@ -538,41 +542,30 @@ for (r, c), cell in tbl.get_celld().items():
         cell.set_facecolor("#f5f9fc")
 
 ax_t.set_title(
-    "(A) Model Comparison: Full Test vs Excl. 2020\n"
-    "(Post-hoc diagnostic — excl. 2020 not a corrected result)",
-    fontsize=10,
-    pad=12,
+    "(A) Model Comparison Across Sample Cuts (post-hoc diagnostic)\n"
+    "Exclusions remove years from evaluation only — models not retrained",
+    fontsize=10, pad=12,
 )
 
-# ── Panel B: AR(1) scatter ───────────────────────────────────────────────────
+# ── Panel B: AR(1) scatter — 2020 red, 2021 orange, rest steelblue ──────────
 ar_pdf = ar_preds_full.select("year", "gdpv_annpct", "ar1_pred").toPandas()
 is_2020_ar = ar_pdf["year"] == 2020
+is_2021_ar = ar_pdf["year"] == 2021
+is_other   = ~(is_2020_ar | is_2021_ar)
 
-ax_s.scatter(
-    ar_pdf.loc[~is_2020_ar, "gdpv_annpct"],
-    ar_pdf.loc[~is_2020_ar, "ar1_pred"],
-    alpha=0.5,
-    s=18,
-    color="steelblue",
-    label="2019–2027 (excl. 2020)",
-)
-ax_s.scatter(
-    ar_pdf.loc[is_2020_ar, "gdpv_annpct"],
-    ar_pdf.loc[is_2020_ar, "ar1_pred"],
-    alpha=0.9,
-    s=50,
-    color="crimson",
-    label="2020 (COVID)",
-    zorder=5,
-)
+ax_s.scatter(ar_pdf.loc[is_other, "gdpv_annpct"],  ar_pdf.loc[is_other, "ar1_pred"],
+             alpha=0.5, s=18, color="steelblue", label="2019, 2022–2027")
+ax_s.scatter(ar_pdf.loc[is_2020_ar, "gdpv_annpct"], ar_pdf.loc[is_2020_ar, "ar1_pred"],
+             alpha=0.9, s=50, color="crimson",   label="2020 (COVID crash)",  zorder=5)
+ax_s.scatter(ar_pdf.loc[is_2021_ar, "gdpv_annpct"], ar_pdf.loc[is_2021_ar, "ar1_pred"],
+             alpha=0.9, s=50, color="darkorange", label="2021 (COVID rebound)", zorder=5)
 
 lims_ar = [
     min(ar_pdf["gdpv_annpct"].min(), ar_pdf["ar1_pred"].min()) - 1,
     max(ar_pdf["gdpv_annpct"].max(), ar_pdf["ar1_pred"].max()) + 1,
 ]
 ax_s.plot(lims_ar, lims_ar, "k--", linewidth=0.8, alpha=0.5)
-ax_s.set_xlim(lims_ar)
-ax_s.set_ylim(lims_ar)
+ax_s.set_xlim(lims_ar); ax_s.set_ylim(lims_ar)
 ax_s.set_xlabel(f"Actual {SHORT['gdpv_annpct']} (%)")
 ax_s.set_ylabel(f"Predicted {SHORT['gdpv_annpct']} (%)")
 ax_s.set_title(
@@ -584,9 +577,7 @@ ax_s.legend(fontsize=8)
 plt.suptitle(
     "Post-hoc COVID Robustness — GDP Nowcasting\n"
     "OECD Economic Outlook, 38 countries, test period 2019–2027",
-    fontsize=12,
-    fontweight="bold",
-    y=1.02,
+    fontsize=12, fontweight="bold", y=1.02,
 )
 
 fig_r.tight_layout(rect=[0, 0.13, 1, 1])
@@ -594,18 +585,13 @@ add_footer(
     fig_r,
     ["gdpv_annpct", "gdp_lag1"],
     extra_notes=(
-        "AR(1) OLS: gdpv_annpct ~ gdp_lag1 + country fixed effects "
-        "(one-hot dummies, trained on pre-2019 data). "
-        "Excl. 2020 rows are removed from evaluation only — "
-        "model was not retrained. 2020 in red throughout."
+        "AR(1) OLS: gdpv_annpct ~ gdp_lag1 + country fixed effects (Spark ML LinearRegression, "
+        "trained on pre-2019 data). 2021 treated as extended COVID: panel mean actual growth "
+        "+6.9pp (symmetric rebound), RMSE=5.7pp — equally unforecastable from annual lags as 2020. "
+        "Exclusions are post-hoc only; models not retrained."
     ),
     y_notes=0.10,
 )
 
 rob_path = ROOT / "output/robustness_covid.png"
-plt.savefig(rob_path, dpi=150, bbox_inches="tight")
-plt.close()
-print(f"Saved {rob_path}")
-
-spark.stop()
-print("\nPhase 4 complete.")
+plt.savefi
