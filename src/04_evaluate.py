@@ -22,10 +22,10 @@ Post-hoc COVID robustness exercise (Section 9 onwards)
     1. Exclude-2020 metrics: re-evaluate all three models on test \ {2020}.
        Not a fix — a diagnostic. Answers "how does the model perform in normal years?"
 
-    2. AR(1) OLS baseline: gdpv_annpct ~ gdp_lag1, country fixed effects via Spark StringIndexer.
-       Fit on train, evaluate on test (full + excl. 2020). The standard econometric
-       benchmark for GDP nowcasting. Answers "does GBT add anything beyond naive
-       persistence?" If GBT beats AR(1) in normal years, that's the signal.
+    2. AR(1) OLS baseline: gdpv_annpct ~ gdp_lag1 + country dummies (proper one-hot
+       encoding via StringIndexer → OneHotEncoder → LinearRegression). Fit on train,
+       evaluate on test (full + excl. 2020/2021). The standard econometric benchmark
+       for GDP nowcasting. Answers "does GBT add anything beyond naive persistence?"
 
   Both exercises are clearly labelled ex-post throughout. The COVID dummy approach
   (feeding a known-shock indicator to the model) is deliberately excluded: it would
@@ -456,15 +456,26 @@ print("=" * 60)
 train_ar = train.select("gdpv_annpct", "gdp_lag1", "country_code", "year").dropna()
 test_ar = test.select("gdpv_annpct", "gdp_lag1", "country_code", "year").dropna()
 
+# Country fixed effects require proper one-hot encoding, not a raw integer index.
+# StringIndexer alone produces an ordinal integer (AUS=0, AUT=1, ...) which the
+# linear model treats as a continuous variable — one unit of "more Australia-ness"
+# — which is meaningless. OneHotEncoder converts each index to a binary indicator
+# vector (dropping one category to avoid the dummy variable trap), giving the model
+# a separate intercept per country as intended.
+from pyspark.ml.feature import OneHotEncoder
+
 country_indexer = StringIndexer(
     inputCol="country_code", outputCol="country_idx", handleInvalid="keep"
 )
+country_ohe = OneHotEncoder(
+    inputCol="country_idx", outputCol="country_ohe", handleInvalid="keep"
+)
 ar_assembler = VectorAssembler(
-    inputCols=["gdp_lag1", "country_idx"], outputCol="features"
+    inputCols=["gdp_lag1", "country_ohe"], outputCol="features"
 )
 
 ar_lr = LinearRegression(featuresCol="features", labelCol="gdpv_annpct")
-ar_pipeline = Pipeline(stages=[country_indexer, ar_assembler, ar_lr])
+ar_pipeline = Pipeline(stages=[country_indexer, country_ohe, ar_assembler, ar_lr])
 
 print("Fitting AR(1) OLS baseline (Spark)...")
 ar_model = ar_pipeline.fit(train_ar)
@@ -495,7 +506,8 @@ robustness = {
         "models are not retrained. 2021 included in 'extended COVID' because "
         "the symmetric rebound (+6.9pp panel mean) is equally unforecastable "
         "from annual lags as the 2020 crash. AR(1) is Spark ML LinearRegression "
-        "with gdp_lag1 + StringIndexer country fixed effects, fit on pre-2019 data."
+        "with gdp_lag1 + proper one-hot country dummies (StringIndexer → OneHotEncoder), "
+        "fit on pre-2019 data."
     ),
     "full_test":    {"gbt": gbt_metrics, "rf": rf_metrics,  "ar1": ar1_full},
     "excl_2020":    {"gbt": gbt_no2020,  "rf": rf_no2020,   "ar1": ar1_no2020},
@@ -595,8 +607,8 @@ add_footer(
     fig_r,
     ["gdpv_annpct", "gdp_lag1"],
     extra_notes=(
-        "AR(1) OLS: gdpv_annpct ~ gdp_lag1 + country fixed effects (Spark ML LinearRegression, "
-        "trained on pre-2019 data). 2021 treated as extended COVID: panel mean actual growth "
+        "AR(1) OLS: gdpv_annpct ~ gdp_lag1 + country dummies (StringIndexer → OneHotEncoder → "
+        "LinearRegression, trained on pre-2019 data). 2021 treated as extended COVID: panel mean actual growth "
         "+6.9pp (symmetric rebound), RMSE=5.7pp — equally unforecastable from annual lags as 2020. "
         "Exclusions are post-hoc only; models not retrained."
     ),
