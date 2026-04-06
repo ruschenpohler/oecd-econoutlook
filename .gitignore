@@ -1,5 +1,6 @@
 # Environment
 .venv/
+.uvcache/
 
 # Data and outputs (regenerated from scripts)
 data/
