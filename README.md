@@ -146,6 +146,9 @@ The comparably simple RF is the best model in every sample. GBT's R-sq deteriora
 
 For more analysis and figures, see the "output" folder.
 
-Model serialization via `model.write().save()` is not implemented here; this requires HDFS or a Linux-based Hadoop environment. A more serious production system would serialize fitted PipelineModels to HDFS for reuse and auditability.
 
-To note: Spark's `CrossValidator` only supports random k-fold partitioning, and not expanding-window time-series CV. That is, one has to be concerned about the potential for temporal leakage. In-fold validation should ideally respect temporal order; but as I see it correcting this would require a custom CV splitter outside the standard Spark ML API (which goes substantially beyond the scope of this project).
+## Notes
+
+**Model serialization:** MS via `model.write().save()` is not implemented in this pipeline. A more serious production system would serialize fitted PipelineModels to HDFS for reuse and auditability. This would require me to use my Linux-based Hadoop environment, which is currently unavailable. 
+
+**Spark's `CrossValidator`:** The CV only supports random k-fold partitioning, and not expanding-window time-series CV. In the curremt pipeline, one has to be concerned about the potential for temporal leakage. In-fold validation should ideally respect temporal order; but as I see it correcting this would require a custom CV splitter outside the standard Spark ML API (which goes substantially beyond the scope of this project).
