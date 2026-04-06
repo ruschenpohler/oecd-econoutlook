@@ -1,0 +1,107 @@
+{
+  "gbt": {
+    "rmse": 3.5683,
+    "mae": 2.2828,
+    "r2": -0.1654
+  },
+  "rf": {
+    "rmse": 3.3683,
+    "mae": 2.1646,
+    "r2": -0.0384
+  },
+  "feature_importance": {
+    "Country FE": 0.0643,
+    "GDP growth (t\u22121)": 0.1481,
+    "GDP growth (t\u22122)": 0.0941,
+    "GDP acceleration": 0.077,
+    "Unemployment (t\u22121)": 0.0613,
+    "Unemployment (t\u22122)": 0.0719,
+    "Current account (t\u22121)": 0.079,
+    "Current account (t\u22122)": 0.055,
+    "Investment growth (t\u22121)": 0.0632,
+    "Investment growth (t\u22122)": 0.0558,
+    "Export growth (t\u22121)": 0.04,
+    "Export growth (t\u22122)": 0.0603,
+    "Import growth (t\u22121)": 0.0856,
+    "Import growth (t\u22122)": 0.0444
+  },
+  "best_hyperparams": {
+    "maxDepth": 3,
+    "stepSize": 0.1
+  },
+  "cv_avg_rmse": [
+    2.9736,
+    3.299
+  ],
+  "robustness": {
+    "note": "Post-hoc diagnostic only. Exclusions remove years from evaluation; models are not retrained. 2021 included in 'extended COVID' because the symmetric rebound (+6.9pp panel mean) is equally unforecastable from annual lags as the 2020 crash. AR(1) is Spark ML LinearRegression with gdp_lag1 + proper one-hot country dummies (StringIndexer \u2192 OneHotEncoder), fit on pre-2019 data.",
+    "full_test": {
+      "gbt": {
+        "rmse": 3.5683,
+        "mae": 2.2828,
+        "r2": -0.1654
+      },
+      "rf": {
+        "rmse": 3.3683,
+        "mae": 2.1646,
+        "r2": -0.0384
+      },
+      "ar1": {
+        "rmse": 3.6193,
+        "mae": 2.3529,
+        "r2": -0.1989
+      }
+    },
+    "excl_2020": {
+      "gbt": {
+        "rmse": 2.7663,
+        "mae": 1.7389,
+        "r2": -0.2921
+      },
+      "rf": {
+        "rmse": 2.5405,
+        "mae": 1.6276,
+        "r2": -0.0898
+      },
+      "ar1": {
+        "rmse": 2.8822,
+        "mae": 1.8174,
+        "r2": -0.4027
+      }
+    },
+    "excl_2020_21": {
+      "gbt": {
+        "rmse": 1.9535,
+        "mae": 1.28,
+        "r2": -0.3039
+      },
+      "rf": {
+        "rmse": 1.6637,
+        "mae": 1.133,
+        "r2": 0.0544
+      },
+      "ar1": {
+        "rmse": 1.73,
+        "mae": 1.1826,
+        "r2": -0.0225
+      }
+    },
+    "excl_2020_23": {
+      "gbt": {
+        "rmse": 1.5043,
+        "mae": 0.9728,
+        "r2": -0.3665
+      },
+      "rf": {
+        "rmse": 1.1462,
+        "mae": 0.7875,
+        "r2": 0.2067
+      },
+      "ar1": {
+        "rmse": 1.2392,
+        "mae": 0.8808,
+        "r2": 0.0726
+      }
+    }
+  }
+}

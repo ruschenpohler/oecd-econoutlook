@@ -2,9 +2,8 @@
 .venv/
 .uvcache/
 
-# Data and outputs (regenerated from scripts)
+# Data (regenerated from scripts)
 data/
-output/
 
 # Learning notebook (not portfolio material)
 notebooks/
