@@ -219,7 +219,7 @@ for name, imp in fi_sorted[:10]:
 # 7. Save outputs
 # ---------------------------------------------------------------------------
 print("\n" + "=" * 60)
-print("STEP 6/6: Saving outputs to CSV and JSON")
+print("STEP 5/7: Saving outputs to CSV and JSON")
 print("=" * 60)
 os.makedirs(ROOT / "output", exist_ok=True)
 
@@ -244,6 +244,9 @@ print(f"\nSaved output/predictions.csv and output/metrics.json")
 # ---------------------------------------------------------------------------
 # 8. Publication-quality prediction diagnostic (4 panels)
 # ---------------------------------------------------------------------------
+print("\n" + "=" * 60)
+print("STEP 6/7: Generating prediction diagnostic figures")
+print("=" * 60)
 # Collect to pandas for plotting
 pdf["error"] = pdf["gbt_pred"] - pdf["gdpv_annpct"]
 pdf["abs_error"] = pdf["error"].abs()
@@ -412,7 +415,10 @@ print(f"Saved {fi_path}")
 # ===========================================================================
 # 9. POST-HOC COVID ROBUSTNESS EXERCISE
 # ===========================================================================
-# This section is an explicit post-hoc diagnostic, not part of the primary
+print("\n" + "=" * 70)
+print("STEP 7/7: Post-hoc COVID robustness exercise")
+print("=" * 70)
+print("This section is an explicit post-hoc diagnostic, not part of the primary")
 # nowcasting pipeline. It answers two questions:
 #   Q1: How much of the negative R² is attributable to the COVID shock years?
 #       → Re-evaluate all models on test \ {2020} and test \ {2020, 2021}.
