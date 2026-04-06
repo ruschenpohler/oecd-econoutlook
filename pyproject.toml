@@ -1,7 +1,7 @@
 [project]
 name = "oecd-econoutlook"
 version = "0.1.0"
-description = "Add your description here"
+description = "Nowcasting OECD GDP growth with PySpark ML and SDMX data"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
