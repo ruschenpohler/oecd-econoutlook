@@ -84,7 +84,7 @@ spark.sparkContext.setLogLevel("WARN")
 # 2. Load data and define pipeline stages
 # ---------------------------------------------------------------------------
 print("=" * 60)
-print("STEP 1/6: Loading train/test data from CSV")
+print("STEP 1/7: Loading train/test data from CSV")
 print("=" * 60)
 train = spark.read.csv(str(ROOT / "data/train.csv"), header=True, inferSchema=True)
 test = spark.read.csv(str(ROOT / "data/test.csv"), header=True, inferSchema=True)
@@ -114,7 +114,7 @@ scaler = StandardScaler(
 # ---------------------------------------------------------------------------
 print("\n" + "=" * 60)
 print(
-    "STEP 2/6: Building ML pipeline (StringIndexer → VectorAssembler → StandardScaler → GBTRegressor)"
+    "STEP 2/7: Building ML pipeline (StringIndexer → VectorAssembler → StandardScaler → GBTRegressor)"
 )
 print("=" * 60)
 
@@ -156,7 +156,7 @@ print(f"CV avg RMSE per combo: {[round(x, 3) for x in cv_model.avgMetrics]}")
 # 4. Random Forest baseline
 # ---------------------------------------------------------------------------
 print("\n" + "=" * 60)
-print("STEP 3/6: Fitting Random Forest baseline")
+print("STEP 3/7: Fitting Random Forest baseline")
 print("=" * 60)
 rf = RandomForestRegressor(
     featuresCol="features", labelCol="gdpv_annpct", numTrees=100, maxDepth=5, seed=42
@@ -203,7 +203,7 @@ print(
 # 6. Feature importances
 # ---------------------------------------------------------------------------
 print("\n" + "=" * 60)
-print("STEP 4/6: Computing feature importances")
+print("STEP 4/7: Computing feature importances")
 print("=" * 60)
 fi_vec = best_gbt.stages[-1].featureImportances
 fi_dict = {
@@ -491,7 +491,7 @@ rf_no_weirdness = ols_metrics(
 # Fit on train Spark DF, evaluate on test Spark DF.
 
 print("\n" + "=" * 60)
-print("STEP 5/6: Fitting AR(1) OLS baseline")
+print("Fitting AR(1) OLS baseline (Spark)...")
 print("=" * 60)
 
 train_ar = train.select("gdpv_annpct", "gdp_lag1", "country_code", "year").dropna()
