@@ -151,6 +151,6 @@ For more analysis and figures, see the "output" folder.
 
 ## Notes
 
-**Model serialization:** MS via `model.write().save()` is not implemented in this pipeline. A more serious production system would serialize fitted PipelineModels to HDFS for reuse and auditability. This would require me to use my Linux-based Hadoop environment, which is currently unavailable. 
+**Model serialization:** Not implemented. `model.write().save()` requires a Hadoop filesystem (HDFS or compatible) which is not available in Spark local mode on Windows. A production system would serialize fitted PipelineModels to HDFS for reuse and auditability. 
 
 **Spark's `CrossValidator`:** The CV only supports random k-fold partitioning, and not expanding-window time-series CV. In the curremt pipeline, one has to be concerned about the potential for temporal leakage. In-fold validation should ideally respect temporal order; but as I see it correcting this would require a custom CV splitter outside the standard Spark ML API (which goes substantially beyond the scope of this project).
