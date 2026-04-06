@@ -36,8 +36,12 @@ DATA_PATH = os.path.join(PROJECT_ROOT, "data", "oecd_economic_outlook.csv")
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
 
 VARIABLES = [
-    "gdpv_annpct", "unr", "cbgdpr",
-    "itv_annpct", "xgsv_annpct", "mgsv_annpct",
+    "gdpv_annpct",
+    "unr",
+    "cbgdpr",
+    "itv_annpct",
+    "xgsv_annpct",
+    "mgsv_annpct",
 ]
 
 
@@ -47,8 +51,10 @@ def main():
     countries = sorted(df["country_code"].unique())
     years = sorted(df["year"].unique())
 
-    print(f"Panel: {len(countries)} countries × {len(years)} years "
-          f"({min(years)}–{max(years)})")
+    print(
+        f"Panel: {len(countries)} countries × {len(years)} years "
+        f"({min(years)}–{max(years)})"
+    )
     print(f"Total rows: {len(df):,}\n")
 
     # -----------------------------------------------------------------------
@@ -58,19 +64,22 @@ def main():
     print("MISSINGNESS BY COUNTRY × VARIABLE (% of that country's rows)")
     print("=" * 70)
 
-    miss_pct = (
-        df.groupby("country_code")[VARIABLES]
-        .apply(lambda g: g.isnull().mean() * 100)
+    miss_pct = df.groupby("country_code")[VARIABLES].apply(
+        lambda g: g.isnull().mean() * 100
     )
     # Round for readability
     miss_pct_display = miss_pct.round(1)
 
     # Summary: countries with >20% missing in any variable
     high_miss = miss_pct[miss_pct.max(axis=1) > 20]
-    print(f"\nCountries with >20% missing in at least one variable: "
-          f"{len(high_miss)} of {len(countries)}")
-    print(f"Countries with COMPLETE data across all variables: "
-          f"{(miss_pct.max(axis=1) == 0).sum()}")
+    print(
+        f"\nCountries with >20% missing in at least one variable: "
+        f"{len(high_miss)} of {len(countries)}"
+    )
+    print(
+        f"Countries with COMPLETE data across all variables: "
+        f"{(miss_pct.max(axis=1) == 0).sum()}"
+    )
     print()
 
     # -----------------------------------------------------------------------
@@ -86,16 +95,18 @@ def main():
         for var in VARIABLES:
             non_null = cdf[cdf[var].notna()]
             if len(non_null) == 0:
-                coverage_records.append({
-                    "country_code": country,
-                    "variable": var,
-                    "first_year": None,
-                    "last_year": None,
-                    "n_available": 0,
-                    "n_total": len(cdf),
-                    "pct_available": 0.0,
-                    "pattern": "entirely_missing",
-                })
+                coverage_records.append(
+                    {
+                        "country_code": country,
+                        "variable": var,
+                        "first_year": None,
+                        "last_year": None,
+                        "n_available": 0,
+                        "n_total": len(cdf),
+                        "pct_available": 0.0,
+                        "pattern": "entirely_missing",
+                    }
+                )
             else:
                 first = int(non_null["year"].min())
                 last = int(non_null["year"].max())
@@ -104,29 +115,34 @@ def main():
                 expected_span = last - first + 1
                 has_gaps = n_avail < expected_span
                 pattern = "contiguous" if not has_gaps else "has_gaps"
-                coverage_records.append({
-                    "country_code": country,
-                    "variable": var,
-                    "first_year": first,
-                    "last_year": last,
-                    "n_available": n_avail,
-                    "n_total": len(cdf),
-                    "pct_available": round(100 * n_avail / len(cdf), 1),
-                    "pattern": pattern,
-                })
+                coverage_records.append(
+                    {
+                        "country_code": country,
+                        "variable": var,
+                        "first_year": first,
+                        "last_year": last,
+                        "n_available": n_avail,
+                        "n_total": len(cdf),
+                        "pct_available": round(100 * n_avail / len(cdf), 1),
+                        "pattern": pattern,
+                    }
+                )
 
     coverage = pd.DataFrame(coverage_records)
 
     # Summarize pattern types
-    pattern_counts = coverage.groupby(["variable", "pattern"]).size().unstack(fill_value=0)
+    pattern_counts = (
+        coverage.groupby(["variable", "pattern"]).size().unstack(fill_value=0)
+    )
     print("\nPattern counts by variable (across all countries):")
     print(pattern_counts.to_string())
     print()
 
     # Which countries are entirely missing for each variable?
     for var in VARIABLES:
-        entirely = coverage[(coverage["variable"] == var) &
-                            (coverage["pattern"] == "entirely_missing")]
+        entirely = coverage[
+            (coverage["variable"] == var) & (coverage["pattern"] == "entirely_missing")
+        ]
         if len(entirely) > 0:
             codes = ", ".join(sorted(entirely["country_code"].tolist()))
             print(f"  {var}: entirely missing for {len(entirely)} countries: {codes}")
@@ -141,19 +157,25 @@ def main():
 
     for var in VARIABLES:
         var_cov = coverage[coverage["variable"] == var]
-        late_start = var_cov[(var_cov["first_year"].notna()) &
-                             (var_cov["first_year"] > min(years) + 2)]
-        early_end = var_cov[(var_cov["last_year"].notna()) &
-                            (var_cov["last_year"] < max(years) - 2)]
+        late_start = var_cov[
+            (var_cov["first_year"].notna()) & (var_cov["first_year"] > min(years) + 2)
+        ]
+        early_end = var_cov[
+            (var_cov["last_year"].notna()) & (var_cov["last_year"] < max(years) - 2)
+        ]
         gaps = var_cov[var_cov["pattern"] == "has_gaps"]
         empty = var_cov[var_cov["pattern"] == "entirely_missing"]
 
         print(f"\n  {var}:")
         print(f"    Entirely missing:    {len(empty):>3} countries")
-        print(f"    Late start (>1992):  {len(late_start):>3} countries "
-              f"(historical missingness)")
-        print(f"    Early end (<{max(years)-2}):   {len(early_end):>3} countries "
-              f"(stopped reporting / recent)")
+        print(
+            f"    Late start (>1992):  {len(late_start):>3} countries "
+            f"(historical missingness)"
+        )
+        print(
+            f"    Early end (<{max(years) - 2}):   {len(early_end):>3} countries "
+            f"(stopped reporting / recent)"
+        )
         print(f"    Internal gaps:       {len(gaps):>3} countries")
 
     # -----------------------------------------------------------------------
@@ -165,10 +187,14 @@ def main():
 
     df["all_complete"] = df[VARIABLES].notna().all(axis=1)
     complete = df[df["all_complete"]]
-    print(f"\nRows with ALL {len(VARIABLES)} variables non-null: {len(complete)} of "
-          f"{len(df)} ({100*len(complete)/len(df):.1f}%)")
-    print(f"Countries represented: {complete['country_code'].nunique()} of "
-          f"{len(countries)}")
+    print(
+        f"\nRows with ALL {len(VARIABLES)} variables non-null: {len(complete)} of "
+        f"{len(df)} ({100 * len(complete) / len(df):.1f}%)"
+    )
+    print(
+        f"Countries represented: {complete['country_code'].nunique()} of "
+        f"{len(countries)}"
+    )
     print(f"Year range: {complete['year'].min()}–{complete['year'].max()}")
 
     # -----------------------------------------------------------------------
@@ -237,8 +263,16 @@ def main():
 
     # --- Sheet 3: Coverage windows ---
     ws3 = wb.create_sheet("year_coverage")
-    cov_headers = ["country_code", "variable", "first_year", "last_year",
-                   "n_available", "n_total", "pct_available", "pattern"]
+    cov_headers = [
+        "country_code",
+        "variable",
+        "first_year",
+        "last_year",
+        "n_available",
+        "n_total",
+        "pct_available",
+        "pattern",
+    ]
     for j, h in enumerate(cov_headers, 1):
         cell = ws3.cell(row=1, column=j, value=h)
         cell.font = Font(bold=True)
@@ -272,10 +306,15 @@ def main():
 
     sns.heatmap(
         plot_data,
-        cmap="YlOrRd", vmin=0, vmax=100,
-        annot=True, fmt=".0f",
-        linewidths=0.3, linecolor="white",
-        ax=ax, cbar_kws={"label": "% Missing"},
+        cmap="YlOrRd",
+        vmin=0,
+        vmax=100,
+        annot=True,
+        fmt=".0f",
+        linewidths=0.3,
+        linecolor="white",
+        ax=ax,
+        cbar_kws={"label": "% Missing"},
     )
     ax.set_title("Missing Data: % per Country × Variable", fontsize=14)
     ax.set_xlabel("")
@@ -292,31 +331,38 @@ def main():
     # -----------------------------------------------------------------------
     # 7. UNR outlier inspection
     #    28 observations (2.0%) exceed 18% — 5+ SDs above the panel mean.
+    # -----------------------------------------------------------------------
     #    All are real, ILO-harmonised values; documented below.
     # -----------------------------------------------------------------------
-    # Load the 6-variable dataset (cpi_ytypct and sratio already dropped)
-    df6 = df[df["country_code"].isin(
-        pd.read_csv(DATA_PATH)["country_code"].unique()
-    )].copy()
     df6 = pd.read_csv(DATA_PATH)
 
     UNR_THRESHOLD = 18
     mean_unr = df6["unr"].mean()
-    std_unr  = df6["unr"].std()
+    std_unr = df6["unr"].std()
 
     episodes = {
-        "GRC": ("Greece",        "#d62728",
-                "Eurozone debt crisis\n(troika austerity, internal devaluation)"),
-        "ESP": ("Spain",         "#ff7f0e",
-                "Eurozone debt crisis\n(construction bust)"),
-        "LVA": ("Latvia",        "#2ca02c",
-                "Post-Soviet transition (1996)\n+ credit bubble bust (2010)"),
-        "POL": ("Poland",        "#9467bd",
-                "Post-communist restructuring\n(pre-EU accession 2004)"),
-        "SVK": ("Slovak Rep.",   "#8c564b",
-                "Post-communist restructuring\n(pre-EU accession 2004)"),
-        "CRI": ("Costa Rica",    "#17becf",
-                "COVID-19\n(tourism/services shock)"),
+        "GRC": (
+            "Greece",
+            "#d62728",
+            "Eurozone debt crisis\n(troika austerity, internal devaluation)",
+        ),
+        "ESP": ("Spain", "#ff7f0e", "Eurozone debt crisis\n(construction bust)"),
+        "LVA": (
+            "Latvia",
+            "#2ca02c",
+            "Post-Soviet transition (1996)\n+ credit bubble bust (2010)",
+        ),
+        "POL": (
+            "Poland",
+            "#9467bd",
+            "Post-communist restructuring\n(pre-EU accession 2004)",
+        ),
+        "SVK": (
+            "Slovak Rep.",
+            "#8c564b",
+            "Post-communist restructuring\n(pre-EU accession 2004)",
+        ),
+        "CRI": ("Costa Rica", "#17becf", "COVID-19\n(tourism/services shock)"),
     }
 
     fig2, axes2 = plt.subplots(1, 2, figsize=(15, 6))
@@ -325,23 +371,48 @@ def main():
 
     # Panel 1: distribution with sigma lines
     ax = axes2[0]
-    ax.hist(df6["unr"].dropna(), bins=40, color="steelblue",
-            edgecolor="white", alpha=0.85)
-    ax.axvline(mean_unr, color="black", linewidth=1.2, linestyle="--",
-               label=f"Mean ({mean_unr:.1f}%)")
-    ax.axvline(mean_unr + 2 * std_unr, color="orange", linewidth=1.0,
-               linestyle=":", label=f"Mean+2σ ({mean_unr+2*std_unr:.1f}%)")
-    ax.axvline(mean_unr + 3 * std_unr, color="red", linewidth=1.0,
-               linestyle=":", label=f"Mean+3σ ({mean_unr+3*std_unr:.1f}%)")
+    ax.hist(
+        df6["unr"].dropna(), bins=40, color="steelblue", edgecolor="white", alpha=0.85
+    )
+    ax.axvline(
+        mean_unr,
+        color="black",
+        linewidth=1.2,
+        linestyle="--",
+        label=f"Mean ({mean_unr:.1f}%)",
+    )
+    ax.axvline(
+        mean_unr + 2 * std_unr,
+        color="orange",
+        linewidth=1.0,
+        linestyle=":",
+        label=f"Mean+2σ ({mean_unr + 2 * std_unr:.1f}%)",
+    )
+    ax.axvline(
+        mean_unr + 3 * std_unr,
+        color="red",
+        linewidth=1.0,
+        linestyle=":",
+        label=f"Mean+3σ ({mean_unr + 3 * std_unr:.1f}%)",
+    )
     ax.axvspan(UNR_THRESHOLD, df6["unr"].max() + 1, alpha=0.08, color="red")
     n_high = (df6["unr"] > UNR_THRESHOLD).sum()
-    ax.text(0.97, 0.97, f"n > {UNR_THRESHOLD}%: {n_high}",
-            transform=ax.transAxes, ha="right", va="top",
-            fontsize=9, color="red")
+    ax.text(
+        0.97,
+        0.97,
+        f"n > {UNR_THRESHOLD}%: {n_high}",
+        transform=ax.transAxes,
+        ha="right",
+        va="top",
+        fontsize=9,
+        color="red",
+    )
     ax.set_xlabel(f"{unr_short} (%)")
     ax.set_ylabel("Count")
-    ax.set_title(f"{unr_short} — full panel distribution\n"
-                 f"Mean={mean_unr:.1f}%, SD={std_unr:.1f}%; shaded = obs > {UNR_THRESHOLD}%")
+    ax.set_title(
+        f"{unr_short} — full panel distribution\n"
+        f"Mean={mean_unr:.1f}%, SD={std_unr:.1f}%; shaded = obs > {UNR_THRESHOLD}%"
+    )
     ax.legend(fontsize=9)
 
     # Panel 2: time series for affected countries
@@ -351,14 +422,28 @@ def main():
         ax.plot(sub["year"], sub["unr"], color=color, linewidth=1.6, label=name)
         peak = sub.loc[sub["unr"].idxmax()]
         ax.scatter(peak["year"], peak["unr"], color=color, s=40, zorder=5)
-    ax.axhline(mean_unr, color="black", linewidth=0.8, linestyle="--",
-               alpha=0.5, label=f"Panel mean ({mean_unr:.1f}%)")
-    ax.axhline(UNR_THRESHOLD, color="red", linewidth=0.8, linestyle=":",
-               alpha=0.6, label=f"{UNR_THRESHOLD}% threshold")
+    ax.axhline(
+        mean_unr,
+        color="black",
+        linewidth=0.8,
+        linestyle="--",
+        alpha=0.5,
+        label=f"Panel mean ({mean_unr:.1f}%)",
+    )
+    ax.axhline(
+        UNR_THRESHOLD,
+        color="red",
+        linewidth=0.8,
+        linestyle=":",
+        alpha=0.6,
+        label=f"{UNR_THRESHOLD}% threshold",
+    )
     ax.set_xlabel("Year")
     ax.set_ylabel(f"{unr_short} (%)")
-    ax.set_title(f"{unr_short} — countries with observations > {UNR_THRESHOLD}%\n"
-                 "(dots = peak year)")
+    ax.set_title(
+        f"{unr_short} — countries with observations > {UNR_THRESHOLD}%\n"
+        "(dots = peak year)"
+    )
     ax.legend(fontsize=8, loc="upper right")
 
     plt.suptitle("UNR Outlier Inspection", fontsize=13, fontweight="bold", y=1.01)
