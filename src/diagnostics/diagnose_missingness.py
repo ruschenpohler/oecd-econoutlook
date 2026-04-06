@@ -10,7 +10,7 @@ Produces:
   - output/missingness_by_country_variable.png — missingness heatmap
   - output/unr_outlier_inspection.png — UNR extreme-value inspection
 
-Run: uv run python src/diagnose_missingness.py
+Run: uv run python src/diagnostics/diagnose_missingness.py
 """
 
 import os

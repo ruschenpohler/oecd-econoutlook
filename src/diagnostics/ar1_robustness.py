@@ -5,7 +5,7 @@ fixed effects (StringIndexer → OneHotEncoder → LinearRegression) on the
 same train/test split used in Phase 4, and prints the full 4-cut × 3-model
 robustness table to stdout.
 
-Run: uv run python src/ar1_robustness.py
+Run: uv run python src/diagnostics/ar1_robustness.py
 """
 
 import numpy as np
