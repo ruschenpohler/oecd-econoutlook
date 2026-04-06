@@ -75,7 +75,7 @@ Feature vector (14 dimensions): `country_idx` (StringIndexer ordinal) + `gdp_lag
 
 The train/test split is time-based: train on years < 2019, test on 2019–2027. Random splits are inappropriate for time-series data because they leak future information into training via lagged features.
 
-(To note: A more rigorous out-of-sample exercise would use a rolling window, i.e., train on 1992–Y, test on Y+1 for each Y from 2016 to 2026, but this would require ~10 separate pipeline fits and goes beyodn the scope of this project.)
+(To note: A more rigorous out-of-sample exercise would use a rolling window, i.e., train on 1992–Y, test on Y+1 for each Y from 2016 to 2026, but this would require ~10 separate pipeline fits and goes beyond the scope of this project.)
 
 `CrossValidator` wraps the entire `Pipeline`, not just the `GBTRegressor`. This means `StandardScaler`'s mean/std is re-computed on each fold's training subset — preventing the scaler from seeing held-out data, which would otherwise constitute a subtle form of data leakage.
 
@@ -155,4 +155,4 @@ For more analysis and figures, see the "output" folder.
 
 **Model serialization:** Not implemented. `model.write().save()` requires a Hadoop filesystem (HDFS or compatible) which is not available in Spark local mode on Windows. A production system would serialize fitted PipelineModels to HDFS for reuse and auditability. 
 
-**Spark's `CrossValidator`:** The CV only supports random k-fold partitioning, and not expanding-window time-series CV. In the curremt pipeline, one has to be concerned about the potential for temporal leakage. In-fold validation should ideally respect temporal order; but as I see it correcting this would require a custom CV splitter outside the standard Spark ML API (which goes substantially beyond the scope of this project).
+**Spark's `CrossValidator`:** The CV only supports random k-fold partitioning, and not expanding-window time-series CV. In the current pipeline, one has to be concerned about the potential for temporal leakage. In-fold validation should ideally respect temporal order; but as I see it correcting this would require a custom CV splitter outside the standard Spark ML API (which goes substantially beyond the scope of this project).
