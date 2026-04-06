@@ -115,20 +115,19 @@ gbt_pipeline = Pipeline(stages=[indexer, assembler, scaler, gbt])
 
 # Grid: 2 depths × 1 stepSize = 2 combos × 2 folds = 4 fits.
 # Reduced from 4×3=12 to keep wall time manageable on a local JVM (each GBT
-# fit on this dataset takes ~90s). The architecturally important thing is that
-# CrossValidator wraps the entire Pipeline — preprocessing is re-fitted on each
-# fold, preventing leakage from StandardScaler's mean/std computation.
+# fit takes ~90s). CrossValidator wraps the entire Pipeline so preprocessing
+# is re-fitted on each fold, preventing leakage from StandardScaler.
+# Note: model serialization (model.write().save()) is not supported in Spark
+# local mode on Windows, so this script always re-fits from data/train.csv.
 param_grid = (
     ParamGridBuilder()
     .addGrid(gbt.maxDepth, [3, 5])
     .addGrid(gbt.stepSize, [0.1])
     .build()
 )
-
 evaluator = RegressionEvaluator(
     labelCol="gdpv_annpct", predictionCol="prediction", metricName="rmse"
 )
-
 cv = CrossValidator(
     estimator=gbt_pipeline,
     estimatorParamMaps=param_grid,
@@ -136,11 +135,9 @@ cv = CrossValidator(
     numFolds=2,
     seed=42,
 )
-
 print("Fitting GBT with CrossValidator (2 param combos × 2 folds = 4 fits)...")
 cv_model = cv.fit(train)
 best_gbt = cv_model.bestModel
-
 print(f"Best maxDepth: {best_gbt.stages[-1].getOrDefault('maxDepth')}")
 print(f"Best stepSize: {best_gbt.stages[-1].getOrDefault('stepSize')}")
 print(f"CV avg RMSE per combo: {[round(x, 3) for x in cv_model.avgMetrics]}")
