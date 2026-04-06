@@ -99,7 +99,7 @@ Two variables were dropped after inspection: `CPI_YTYPCT` (headline inflation) i
 
 The resulting panel is 94.3% complete across all six variables. Residual missingness (~5.7%) tends to be concentrated in early years for newer members (CRI, COL, LTU, LVA). This is handled by lag-induced `dropna` in Phase 2 and `VectorAssembler(handleInvalid="skip")` in Phase 3. A more serious production system would model the missingness mechanism explicitly (MAR/MNAR tests, multiple imputation), but that is outside the scope here.
 
-`UNR` contains 28 observations exceeding 18% — more than 5 SDs above the panel mean of 7.4% (SD 3.8). These are documented structural episodes: Greece 2012–2018 (peak 27.5%, Eurozone debt crisis), Spain 2010–2016 (peak 26.1%), Latvia 1996 and 2010 (probably, post-Soviet transition and credit-bubble collapse), Poland and Slovak Republic 2001–2004 (potentially pre-EU accession restructuring), Costa Rica 2020 (COVID tourism shock).
+`UNR` contains 28 observations exceeding 18% — more than 5 SDs above the panel mean of 7.4% (SD 3.8). These are documented structural episodes: Greece 2012–2018 (peak 27.5%, Eurozone debt crisis), Spain 2010–2016 (peak 26.1%), Latvia 1996 and 2010 (probably, post-Soviet transition and credit-bubble collapse), Poland and Slovak Republic 2000–2004 (potentially pre-EU accession restructuring), Costa Rica 2020 (COVID tourism shock).
 
 To note: Gradient Boosted Trees, the main model used in this analysis, are scale-invariant to these observations (tree splits on rank thresholds; `StandardScaler` on lag columns further reduces leverage), though extreme unemployment regimes may have qualitatively different GDP dynamics that a country fixed effect only partially captures.
 
