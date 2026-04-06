@@ -127,20 +127,22 @@ All metrics are on the test set (2019–2027, n=342). Best CV hyperparameters fo
 
 **Full test set:**
 
-Model       | RMSE (pp) | MAE (pp)  | R-sq
-GBT (CV)    | 3.57      | 2.28      | −0.165
-RF          | **3.37**  | **2.16**  | **−0.038**
-AR(1) OLS   | 3.62      | 2.35      | −0.199
+| Model | RMSE (pp) | MAE (pp) | R² |
+|-------|-----------|----------|------|
+| GBT (CV) | 3.57 | 2.28 | −0.165 |
+| RF | **3.37** | **2.16** | **−0.038** |
+| AR(1) OLS | 3.62 | 2.35 | −0.199 |
 
 All three models show negative R-sq on the full test set. The test period contains 2020 (COVID-19 crash, per-year RMSE 7.2 pp) and 2021 (recovery rebound, RMSE 5.7 pp) — both are exogenous shocks with likely little signal in annual lagged indicators, and together they dominate the aggregate error. Post-hoc evaluation across progressively cleaner sample cuts isolates how much of the negative R-sq is COVID-specific versus structural.
 
 **COVID robustness cuts (post-hoc diagnostic — models not retrained):**
 
-Sample              | n     | GBT R-sq  | RF R-sq   | AR(1) R-sq
-Full (2019–2027)    | 342   | −0.165    | −0.038    | −0.199
-Excl. 2020          | 304   | −0.292    | −0.090    | −0.403
-Excl. 2020–21       | 266   | −0.304    | 0.054     | −0.023
-Excl. 2020–23       | 190   | −0.367    | **0.207** | 0.073
+| Sample | n | GBT R² | RF R² | AR(1) R² |
+|--------|------|--------|-------|----------|
+| Full (2019–2027) | 342 | −0.165 | −0.038 | −0.199 |
+| Excl. 2020 | 304 | −0.292 | −0.090 | −0.403 |
+| Excl. 2020–21 | 266 | −0.304 | 0.054 | −0.023 |
+| Excl. 2020–23 | 190 | −0.367 | **0.207** | 0.073 |
 
 Excl. 2020–23 removes the four years where either outcomes or lag features are COVID-contaminated. `gdp_lag1` in 2022 equals the 2021 actual (+6.9 pp rebound); `gdp_lag2` in 2023 equals the same. Contamination clears after 2023. The remaining observations (2019 + 2024–2027, n=190) form the only window where both outcomes and features are from the pre-COVID distribution.
 
