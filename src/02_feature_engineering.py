@@ -36,9 +36,10 @@ def main():
     # spark.sql.shuffle.partitions = 8: default is 200, which is overkill
     # for a ~1,400-row dataset and creates unnecessary overhead.
     import os as _os
-_os.environ.setdefault("SPARK_LOCAL_IP", "127.0.0.1")
 
-spark = (
+    _os.environ.setdefault("SPARK_LOCAL_IP", "127.0.0.1")
+
+    spark = (
         SparkSession.builder.master("local[*]")
         .appName("OECD-GDP-Nowcast-FeatureEng")
         .config("spark.driver.memory", "2g")
