@@ -73,6 +73,8 @@ Feature vector (14 dimensions): `country_idx` (StringIndexer ordinal) + `gdp_lag
 
 The train/test split is time-based: train on years < 2019, test on 2019–2027. Random splits are inappropriate for time-series data because they leak future information into training via lagged features.
 
+(To note: A more rigorous out-of-sample exercise would use a rolling window, i.e., train on 1992–Y, test on Y+1 for each Y from 2016 to 2026, but this would require ~10 separate pipeline fits and goes beyodn the scope of this project.)
+
 `CrossValidator` wraps the entire `Pipeline`, not just the `GBTRegressor`. This means `StandardScaler`'s mean/std is re-computed on each fold's training subset — preventing the scaler from seeing held-out data, which would otherwise constitute a subtle form of data leakage.
 
 
