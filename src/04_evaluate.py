@@ -51,7 +51,6 @@ from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import StringIndexer, VectorAssembler, StandardScaler
-from pyspark.ml.regression import GBTRegressor, RandomForestRegressor
 from pyspark.ml.evaluation import RegressionEvaluator
 from pyspark.ml.tuning import ParamGridBuilder, CrossValidator
 
@@ -65,7 +64,10 @@ sns.set_style("whitegrid")
 # 1. SparkSession
 # ---------------------------------------------------------------------------
 import os as _os
-_os.environ.setdefault("SPARK_LOCAL_IP", "127.0.0.1")   # sandbox: hostname not resolvable
+
+_os.environ.setdefault(
+    "SPARK_LOCAL_IP", "127.0.0.1"
+)  # sandbox: hostname not resolvable
 
 spark = (
     SparkSession.builder.master("local[*]")
@@ -91,21 +93,29 @@ print(f"Train: {train.count()} rows | Test: {test.count()} rows")
 # ---------------------------------------------------------------------------
 # 3. Feature column definitions and pipeline stage constructors
 # ---------------------------------------------------------------------------
-MACRO_VARS   = ["unr", "cbgdpr", "itv_annpct", "xgsv_annpct", "mgsv_annpct"]
-lag_cols     = [f"{v}_lag{k}" for v in MACRO_VARS for k in [1, 2]]
-ar_cols      = ["gdp_lag1", "gdp_lag2", "gdp_accel"]
-FEATURE_COLS  = ["country_idx"] + ar_cols + lag_cols          # 14 features total
+MACRO_VARS = ["unr", "cbgdpr", "itv_annpct", "xgsv_annpct", "mgsv_annpct"]
+lag_cols = [f"{v}_lag{k}" for v in MACRO_VARS for k in [1, 2]]
+ar_cols = ["gdp_lag1", "gdp_lag2", "gdp_accel"]
+FEATURE_COLS = ["country_idx"] + ar_cols + lag_cols  # 14 features total
 FEATURE_NAMES = [SHORT.get(c, c) for c in FEATURE_COLS]
 
-indexer  = StringIndexer(inputCol="country_code", outputCol="country_idx", handleInvalid="keep")
-assembler = VectorAssembler(inputCols=FEATURE_COLS, outputCol="features_raw", handleInvalid="skip")
-scaler   = StandardScaler(inputCol="features_raw", outputCol="features", withStd=True, withMean=False)
+indexer = StringIndexer(
+    inputCol="country_code", outputCol="country_idx", handleInvalid="keep"
+)
+assembler = VectorAssembler(
+    inputCols=FEATURE_COLS, outputCol="features_raw", handleInvalid="skip"
+)
+scaler = StandardScaler(
+    inputCol="features_raw", outputCol="features", withStd=True, withMean=False
+)
 
 # ---------------------------------------------------------------------------
 # 4. GBT pipeline + CrossValidator
 # ---------------------------------------------------------------------------
 print("\n" + "=" * 60)
-print("STEP 2/6: Building ML pipeline (StringIndexer → VectorAssembler → StandardScaler → GBTRegressor)")
+print(
+    "STEP 2/6: Building ML pipeline (StringIndexer → VectorAssembler → StandardScaler → GBTRegressor)"
+)
 print("=" * 60)
 
 gbt = GBTRegressor(
@@ -428,15 +438,15 @@ print("=" * 70)
 # --- 9a. Collect predictions to pandas (already done: pdf) ------------------
 # pdf has columns: country_code, country_name, year, gdpv_annpct,
 #                  gbt_pred, rf_pred, error, abs_error
-COVID_YEARS     = [2020, 2021]        # crash + symmetric rebound
+COVID_YEARS = [2020, 2021]  # crash + symmetric rebound
 # "Extended weirdness": years where COVID contaminates the *feature space*.
 # gdp_lag1 in 2022 = actual 2021 (+6.9pp outlier); gdp_lag2 in 2023 = actual 2021.
 # Lag contamination clears after 2023. Excl. 2020-23 leaves 2024-2027 x 38 = 152 obs —
 # the only window where both outcomes and lags are from the pre-COVID distribution.
 WEIRDNESS_YEARS = [2020, 2021, 2022, 2023]
 
-pdf_no2020       = pdf[pdf["year"] != 2020].copy()
-pdf_no_covid     = pdf[~pdf["year"].isin(COVID_YEARS)].copy()
+pdf_no2020 = pdf[pdf["year"] != 2020].copy()
+pdf_no_covid = pdf[~pdf["year"].isin(COVID_YEARS)].copy()
 pdf_no_weirdness = pdf[~pdf["year"].isin(WEIRDNESS_YEARS)].copy()
 
 
@@ -452,12 +462,22 @@ def ols_metrics(y_true, y_pred):
 
 
 # GBT and RF across all exclusion cuts
-gbt_no2020       = ols_metrics(pdf_no2020["gdpv_annpct"].values,       pdf_no2020["gbt_pred"].values)
-rf_no2020        = ols_metrics(pdf_no2020["gdpv_annpct"].values,       pdf_no2020["rf_pred"].values)
-gbt_no_covid     = ols_metrics(pdf_no_covid["gdpv_annpct"].values,     pdf_no_covid["gbt_pred"].values)
-rf_no_covid      = ols_metrics(pdf_no_covid["gdpv_annpct"].values,     pdf_no_covid["rf_pred"].values)
-gbt_no_weirdness = ols_metrics(pdf_no_weirdness["gdpv_annpct"].values, pdf_no_weirdness["gbt_pred"].values)
-rf_no_weirdness  = ols_metrics(pdf_no_weirdness["gdpv_annpct"].values, pdf_no_weirdness["rf_pred"].values)
+gbt_no2020 = ols_metrics(
+    pdf_no2020["gdpv_annpct"].values, pdf_no2020["gbt_pred"].values
+)
+rf_no2020 = ols_metrics(pdf_no2020["gdpv_annpct"].values, pdf_no2020["rf_pred"].values)
+gbt_no_covid = ols_metrics(
+    pdf_no_covid["gdpv_annpct"].values, pdf_no_covid["gbt_pred"].values
+)
+rf_no_covid = ols_metrics(
+    pdf_no_covid["gdpv_annpct"].values, pdf_no_covid["rf_pred"].values
+)
+gbt_no_weirdness = ols_metrics(
+    pdf_no_weirdness["gdpv_annpct"].values, pdf_no_weirdness["gbt_pred"].values
+)
+rf_no_weirdness = ols_metrics(
+    pdf_no_weirdness["gdpv_annpct"].values, pdf_no_weirdness["rf_pred"].values
+)
 
 # --- 9b. AR(1) OLS baseline -------------------------------------------------
 # Model: gdpv_annpct_t = α_country + β · gdp_lag1_t + ε
@@ -499,22 +519,32 @@ ar_preds_full = ar_model.transform(test_ar).withColumnRenamed("prediction", "ar1
 
 ar1_full = eval_metrics(ar_preds_full.withColumnRenamed("ar1_pred", "prediction"))
 
-ar_preds_no2020       = ar_preds_full.filter(F.col("year") != 2020)
-ar_preds_no_covid     = ar_preds_full.filter(~F.col("year").isin(COVID_YEARS))
+ar_preds_no2020 = ar_preds_full.filter(F.col("year") != 2020)
+ar_preds_no_covid = ar_preds_full.filter(~F.col("year").isin(COVID_YEARS))
 ar_preds_no_weirdness = ar_preds_full.filter(~F.col("year").isin(WEIRDNESS_YEARS))
-ar1_no2020       = eval_metrics(ar_preds_no2020.withColumnRenamed("ar1_pred", "prediction"))
-ar1_no_covid     = eval_metrics(ar_preds_no_covid.withColumnRenamed("ar1_pred", "prediction"))
-ar1_no_weirdness = eval_metrics(ar_preds_no_weirdness.withColumnRenamed("ar1_pred", "prediction"))
+ar1_no2020 = eval_metrics(ar_preds_no2020.withColumnRenamed("ar1_pred", "prediction"))
+ar1_no_covid = eval_metrics(
+    ar_preds_no_covid.withColumnRenamed("ar1_pred", "prediction")
+)
+ar1_no_weirdness = eval_metrics(
+    ar_preds_no_weirdness.withColumnRenamed("ar1_pred", "prediction")
+)
 
-print(f"\n{'Model':<12} {'Full':>10} {'Excl.2020':>11} {'Excl.20-21':>12} {'Excl.20-23':>12}")
+print(
+    f"\n{'Model':<12} {'Full':>10} {'Excl.2020':>11} {'Excl.20-21':>12} {'Excl.20-23':>12}"
+)
 print("-" * 60)
 for label, m_full, m_20, m_cv, m_wd in [
-    ("GBT",   gbt_metrics, gbt_no2020, gbt_no_covid, gbt_no_weirdness),
-    ("RF",    rf_metrics,  rf_no2020,  rf_no_covid,  rf_no_weirdness),
-    ("AR(1)", ar1_full,    ar1_no2020, ar1_no_covid, ar1_no_weirdness),
+    ("GBT", gbt_metrics, gbt_no2020, gbt_no_covid, gbt_no_weirdness),
+    ("RF", rf_metrics, rf_no2020, rf_no_covid, rf_no_weirdness),
+    ("AR(1)", ar1_full, ar1_no2020, ar1_no_covid, ar1_no_weirdness),
 ]:
-    print(f"{label:<12} R²={m_full['r2']:>6.4f}  R²={m_20['r2']:>7.4f}  R²={m_cv['r2']:>7.4f}  R²={m_wd['r2']:>7.4f}")
-    print(f"{'':12} RMSE={m_full['rmse']:>5.3f} RMSE={m_20['rmse']:>5.3f} RMSE={m_cv['rmse']:>5.3f} RMSE={m_wd['rmse']:>5.3f}")
+    print(
+        f"{label:<12} R²={m_full['r2']:>6.4f}  R²={m_20['r2']:>7.4f}  R²={m_cv['r2']:>7.4f}  R²={m_wd['r2']:>7.4f}"
+    )
+    print(
+        f"{'':12} RMSE={m_full['rmse']:>5.3f} RMSE={m_20['rmse']:>5.3f} RMSE={m_cv['rmse']:>5.3f} RMSE={m_wd['rmse']:>5.3f}"
+    )
 
 # --- 9c. Save robustness metrics to metrics.json ----------------------------
 robustness = {
@@ -526,10 +556,14 @@ robustness = {
         "with gdp_lag1 + proper one-hot country dummies (StringIndexer → OneHotEncoder), "
         "fit on pre-2019 data."
     ),
-    "full_test":    {"gbt": gbt_metrics,      "rf": rf_metrics,       "ar1": ar1_full},
-    "excl_2020":    {"gbt": gbt_no2020,       "rf": rf_no2020,        "ar1": ar1_no2020},
-    "excl_2020_21": {"gbt": gbt_no_covid,     "rf": rf_no_covid,      "ar1": ar1_no_covid},
-    "excl_2020_23": {"gbt": gbt_no_weirdness, "rf": rf_no_weirdness,  "ar1": ar1_no_weirdness},
+    "full_test": {"gbt": gbt_metrics, "rf": rf_metrics, "ar1": ar1_full},
+    "excl_2020": {"gbt": gbt_no2020, "rf": rf_no2020, "ar1": ar1_no2020},
+    "excl_2020_21": {"gbt": gbt_no_covid, "rf": rf_no_covid, "ar1": ar1_no_covid},
+    "excl_2020_23": {
+        "gbt": gbt_no_weirdness,
+        "rf": rf_no_weirdness,
+        "ar1": ar1_no_weirdness,
+    },
 }
 metrics_out["robustness"] = robustness
 with open(ROOT / "output/metrics.json", "w") as f:
@@ -546,30 +580,54 @@ fig_r, (ax_t, ax_s) = plt.subplots(1, 2, figsize=(18, 6))
 # ── Panel A: 4-column metrics table ─────────────────────────────────────────
 ax_t.axis("off")
 col_labels = [
-    "Full test\nRMSE",      "Full test\nR²",
-    "Excl. 2020\nRMSE",     "Excl. 2020\nR²",
-    "Excl. 2020–21\nRMSE",  "Excl. 2020–21\nR²",
-    "Excl. 2020–23\nRMSE",  "Excl. 2020–23\nR²",
+    "Full test\nRMSE",
+    "Full test\nR²",
+    "Excl. 2020\nRMSE",
+    "Excl. 2020\nR²",
+    "Excl. 2020–21\nRMSE",
+    "Excl. 2020–21\nR²",
+    "Excl. 2020–23\nRMSE",
+    "Excl. 2020–23\nR²",
 ]
 cell_text = [
-    [f"{gbt_metrics['rmse']:.3f}",      f"{gbt_metrics['r2']:.4f}",
-     f"{gbt_no2020['rmse']:.3f}",       f"{gbt_no2020['r2']:.4f}",
-     f"{gbt_no_covid['rmse']:.3f}",     f"{gbt_no_covid['r2']:.4f}",
-     f"{gbt_no_weirdness['rmse']:.3f}", f"{gbt_no_weirdness['r2']:.4f}"],
-    [f"{rf_metrics['rmse']:.3f}",       f"{rf_metrics['r2']:.4f}",
-     f"{rf_no2020['rmse']:.3f}",        f"{rf_no2020['r2']:.4f}",
-     f"{rf_no_covid['rmse']:.3f}",      f"{rf_no_covid['r2']:.4f}",
-     f"{rf_no_weirdness['rmse']:.3f}",  f"{rf_no_weirdness['r2']:.4f}"],
-    [f"{ar1_full['rmse']:.3f}",         f"{ar1_full['r2']:.4f}",
-     f"{ar1_no2020['rmse']:.3f}",       f"{ar1_no2020['r2']:.4f}",
-     f"{ar1_no_covid['rmse']:.3f}",     f"{ar1_no_covid['r2']:.4f}",
-     f"{ar1_no_weirdness['rmse']:.3f}", f"{ar1_no_weirdness['r2']:.4f}"],
+    [
+        f"{gbt_metrics['rmse']:.3f}",
+        f"{gbt_metrics['r2']:.4f}",
+        f"{gbt_no2020['rmse']:.3f}",
+        f"{gbt_no2020['r2']:.4f}",
+        f"{gbt_no_covid['rmse']:.3f}",
+        f"{gbt_no_covid['r2']:.4f}",
+        f"{gbt_no_weirdness['rmse']:.3f}",
+        f"{gbt_no_weirdness['r2']:.4f}",
+    ],
+    [
+        f"{rf_metrics['rmse']:.3f}",
+        f"{rf_metrics['r2']:.4f}",
+        f"{rf_no2020['rmse']:.3f}",
+        f"{rf_no2020['r2']:.4f}",
+        f"{rf_no_covid['rmse']:.3f}",
+        f"{rf_no_covid['r2']:.4f}",
+        f"{rf_no_weirdness['rmse']:.3f}",
+        f"{rf_no_weirdness['r2']:.4f}",
+    ],
+    [
+        f"{ar1_full['rmse']:.3f}",
+        f"{ar1_full['r2']:.4f}",
+        f"{ar1_no2020['rmse']:.3f}",
+        f"{ar1_no2020['r2']:.4f}",
+        f"{ar1_no_covid['rmse']:.3f}",
+        f"{ar1_no_covid['r2']:.4f}",
+        f"{ar1_no_weirdness['rmse']:.3f}",
+        f"{ar1_no_weirdness['r2']:.4f}",
+    ],
 ]
 tbl = ax_t.table(
     cellText=cell_text,
     rowLabels=["GBT (CV)", "RF", "AR(1) OLS"],
     colLabels=col_labels,
-    cellLoc="center", rowLoc="center", loc="center",
+    cellLoc="center",
+    rowLoc="center",
+    loc="center",
 )
 tbl.auto_set_font_size(False)
 tbl.set_fontsize(8)
@@ -589,7 +647,8 @@ ax_t.set_title(
     "(A) Model Comparison Across Sample Cuts (post-hoc diagnostic)\n"
     "Excl. 2020–23: only years with uncontaminated lags and outcomes (2024–2027, n=152)\n"
     "Exclusions remove years from evaluation only — models not retrained",
-    fontsize=9, pad=12,
+    fontsize=9,
+    pad=12,
 )
 
 # ── Panel B: scatter — 2020 red, 2021 orange, 2022-23 goldenrod, rest blue ──
@@ -597,23 +656,51 @@ ar_pdf = ar_preds_full.select("year", "gdpv_annpct", "ar1_pred").toPandas()
 is_2020_ar = ar_pdf["year"] == 2020
 is_2021_ar = ar_pdf["year"] == 2021
 is_2223_ar = ar_pdf["year"].isin([2022, 2023])
-is_other   = ~(is_2020_ar | is_2021_ar | is_2223_ar)
+is_other = ~(is_2020_ar | is_2021_ar | is_2223_ar)
 
-ax_s.scatter(ar_pdf.loc[is_other,   "gdpv_annpct"], ar_pdf.loc[is_other,   "ar1_pred"],
-             alpha=0.5, s=18, color="steelblue",   label="2019, 2024–2027 (clean)")
-ax_s.scatter(ar_pdf.loc[is_2020_ar, "gdpv_annpct"], ar_pdf.loc[is_2020_ar, "ar1_pred"],
-             alpha=0.9, s=50, color="crimson",     label="2020 (COVID crash)",          zorder=5)
-ax_s.scatter(ar_pdf.loc[is_2021_ar, "gdpv_annpct"], ar_pdf.loc[is_2021_ar, "ar1_pred"],
-             alpha=0.9, s=50, color="darkorange",  label="2021 (COVID rebound)",        zorder=5)
-ax_s.scatter(ar_pdf.loc[is_2223_ar, "gdpv_annpct"], ar_pdf.loc[is_2223_ar, "ar1_pred"],
-             alpha=0.9, s=40, color="goldenrod",   label="2022–23 (contaminated lags)", zorder=4)
+ax_s.scatter(
+    ar_pdf.loc[is_other, "gdpv_annpct"],
+    ar_pdf.loc[is_other, "ar1_pred"],
+    alpha=0.5,
+    s=18,
+    color="steelblue",
+    label="2019, 2024–2027 (clean)",
+)
+ax_s.scatter(
+    ar_pdf.loc[is_2020_ar, "gdpv_annpct"],
+    ar_pdf.loc[is_2020_ar, "ar1_pred"],
+    alpha=0.9,
+    s=50,
+    color="crimson",
+    label="2020 (COVID crash)",
+    zorder=5,
+)
+ax_s.scatter(
+    ar_pdf.loc[is_2021_ar, "gdpv_annpct"],
+    ar_pdf.loc[is_2021_ar, "ar1_pred"],
+    alpha=0.9,
+    s=50,
+    color="darkorange",
+    label="2021 (COVID rebound)",
+    zorder=5,
+)
+ax_s.scatter(
+    ar_pdf.loc[is_2223_ar, "gdpv_annpct"],
+    ar_pdf.loc[is_2223_ar, "ar1_pred"],
+    alpha=0.9,
+    s=40,
+    color="goldenrod",
+    label="2022–23 (contaminated lags)",
+    zorder=4,
+)
 
 lims_ar = [
     min(ar_pdf["gdpv_annpct"].min(), ar_pdf["ar1_pred"].min()) - 1,
     max(ar_pdf["gdpv_annpct"].max(), ar_pdf["ar1_pred"].max()) + 1,
 ]
 ax_s.plot(lims_ar, lims_ar, "k--", linewidth=0.8, alpha=0.5)
-ax_s.set_xlim(lims_ar); ax_s.set_ylim(lims_ar)
+ax_s.set_xlim(lims_ar)
+ax_s.set_ylim(lims_ar)
 ax_s.set_xlabel(f"Actual {SHORT['gdpv_annpct']} (%)")
 ax_s.set_ylabel(f"Predicted {SHORT['gdpv_annpct']} (%)")
 ax_s.set_title(
@@ -625,7 +712,9 @@ ax_s.legend(fontsize=8)
 plt.suptitle(
     "Post-hoc COVID Robustness — GDP Nowcasting\n"
     "OECD Economic Outlook, 38 countries, test period 2019–2027",
-    fontsize=12, fontweight="bold", y=1.02,
+    fontsize=12,
+    fontweight="bold",
+    y=1.02,
 )
 
 fig_r.tight_layout(rect=[0, 0.13, 1, 1])
