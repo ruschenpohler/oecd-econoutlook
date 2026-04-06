@@ -360,7 +360,7 @@ plt.suptitle(
     y=1.01,
 )
 
-fig.tight_layout(rect=[0, 0.15, 1, 1])
+fig.tight_layout()
 
 # Footer: all 6 base variables + lag note + 2020 note
 ALL_BASE_VARS = [
@@ -377,7 +377,6 @@ add_footer(
     extra_notes="For lagged variables, the lag in years is displayed in the figure. "
     "2020 highlighted in red throughout (COVID-19 exogenous shock). "
     "Dashed line = perfect prediction.",
-    y_notes=0.03,
 )
 
 diag_path = ROOT / "output/prediction_diagnostics.png"
@@ -400,12 +399,11 @@ for bar, val in zip(ax2.patches, all_vals):
         fontsize=8,
     )
 ax2.tick_params(axis="y", labelsize=8)
-plt.tight_layout(rect=[0, 0.13, 1, 1])
+plt.tight_layout()
 add_footer(
     fig2,
     ALL_BASE_VARS,
     extra_notes="For lagged variables, the lag in years is displayed in the figure.",
-    y_notes=0.10,
 )
 fi_path = ROOT / "output/feature_importance.png"
 plt.savefig(fi_path, dpi=150, bbox_inches="tight")
@@ -723,7 +721,7 @@ plt.suptitle(
     y=1.02,
 )
 
-fig_r.tight_layout(rect=[0, 0.13, 1, 1])
+fig_r.tight_layout()
 add_footer(
     fig_r,
     ["gdpv_annpct", "gdp_lag1"],
@@ -733,7 +731,6 @@ add_footer(
         "+6.9pp (symmetric rebound), RMSE=5.7pp — equally unforecastable from annual lags as 2020. "
         "Exclusions are post-hoc only; models not retrained."
     ),
-    y_notes=0.10,
 )
 
 rob_path = ROOT / "output/robustness_covid.png"

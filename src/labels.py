@@ -18,57 +18,72 @@ SOURCE = "Source: OECD Economic Outlook via SDMX REST API (dataflow OECD.ECO.MAD
 # Short labels: axis ticks, legend entries, chart titles.
 # ---------------------------------------------------------------------------
 SHORT = {
-    "gdpv_annpct":       "GDP growth",
-    "unr":               "Unemployment",
-    "cbgdpr":            "Current account",
-    "itv_annpct":        "Investment growth",
-    "xgsv_annpct":       "Export growth",
-    "mgsv_annpct":       "Import growth",
+    "gdpv_annpct": "GDP growth",
+    "unr": "Unemployment",
+    "cbgdpr": "Current account",
+    "itv_annpct": "Investment growth",
+    "xgsv_annpct": "Export growth",
+    "mgsv_annpct": "Import growth",
     # lag versions
-    "gdp_lag1":          "GDP growth (t−1)",
-    "gdp_lag2":          "GDP growth (t−2)",
-    "gdp_accel":         "GDP acceleration",
-    "unr_lag1":          "Unemployment (t−1)",
-    "unr_lag2":          "Unemployment (t−2)",
-    "cbgdpr_lag1":       "Current account (t−1)",
-    "cbgdpr_lag2":       "Current account (t−2)",
-    "itv_annpct_lag1":   "Investment growth (t−1)",
-    "itv_annpct_lag2":   "Investment growth (t−2)",
-    "xgsv_annpct_lag1":  "Export growth (t−1)",
-    "xgsv_annpct_lag2":  "Export growth (t−2)",
-    "mgsv_annpct_lag1":  "Import growth (t−1)",
-    "mgsv_annpct_lag2":  "Import growth (t−2)",
-    "country_idx":       "Country FE",
+    "gdp_lag1": "GDP growth (t−1)",
+    "gdp_lag2": "GDP growth (t−2)",
+    "gdp_accel": "GDP acceleration",
+    "unr_lag1": "Unemployment (t−1)",
+    "unr_lag2": "Unemployment (t−2)",
+    "cbgdpr_lag1": "Current account (t−1)",
+    "cbgdpr_lag2": "Current account (t−2)",
+    "itv_annpct_lag1": "Investment growth (t−1)",
+    "itv_annpct_lag2": "Investment growth (t−2)",
+    "xgsv_annpct_lag1": "Export growth (t−1)",
+    "xgsv_annpct_lag2": "Export growth (t−2)",
+    "mgsv_annpct_lag1": "Import growth (t−1)",
+    "mgsv_annpct_lag2": "Import growth (t−2)",
+    "country_idx": "Country FE",
 }
 
 # ---------------------------------------------------------------------------
 # Variable definitions: (short_label, OECD_code, definition)
 # ---------------------------------------------------------------------------
 DEFS = {
-    "gdpv_annpct": ("GDP growth",        "GDPV_ANNPCT", "Real GDP growth, annual % change"),
-    "unr":         ("Unemployment",      "UNR",         "Unemployment rate, % of labour force (ILO-harmonised)"),
-    "cbgdpr":      ("Current account",   "CBGDPR",      "Current account balance, % of GDP"),
-    "itv_annpct":  ("Investment growth", "ITV_ANNPCT",  "Gross fixed capital formation, volume, annual % change"),
-    "xgsv_annpct": ("Export growth",     "XGSV_ANNPCT", "Export volume, annual % change"),
-    "mgsv_annpct": ("Import growth",     "MGSV_ANNPCT", "Import volume, annual % change"),
+    "gdpv_annpct": ("GDP growth", "GDPV_ANNPCT", "Real GDP growth, annual % change"),
+    "unr": (
+        "Unemployment",
+        "UNR",
+        "Unemployment rate, % of labour force (ILO-harmonised)",
+    ),
+    "cbgdpr": ("Current account", "CBGDPR", "Current account balance, % of GDP"),
+    "itv_annpct": (
+        "Investment growth",
+        "ITV_ANNPCT",
+        "Gross fixed capital formation, volume, annual % change",
+    ),
+    "xgsv_annpct": ("Export growth", "XGSV_ANNPCT", "Export volume, annual % change"),
+    "mgsv_annpct": ("Import growth", "MGSV_ANNPCT", "Import volume, annual % change"),
 }
 
 
-def add_footer(fig, vars_used: list, extra_notes: str = None,
-               fontsize: int = 7, y_notes: float = 0.025, y_source: float = None):
+def add_footer(
+    fig,
+    vars_used: list,
+    extra_notes: str = None,
+    fontsize: int = 7,
+    bottom_margin: float = None,
+):
     """
     Add two footer lines to a figure:
       Line 1 (Notes):  variable definitions + any extra_notes string
       Line 2 (Source): standard data source citation
 
+    Automatically reserves bottom margin so the footer never overlaps axes.
+
     Parameters
     ----------
-    fig         : matplotlib Figure
-    vars_used   : list of variable keys (from DEFS) to document
-    extra_notes : optional free-text appended after variable definitions
-    fontsize    : font size for both lines
-    y_notes     : vertical position (top) of Notes line in figure coordinates
-    y_source    : vertical position of Source line; auto-computed from line count if None
+    fig          : matplotlib Figure
+    vars_used    : list of variable keys (from DEFS) to document
+    extra_notes  : optional free-text appended after variable definitions
+    fontsize     : font size for both lines
+    bottom_margin: figure-coordinate fraction to reserve at bottom;
+                   auto-computed from content if None.
     """
     # Build Notes line
     parts = []
@@ -80,21 +95,45 @@ def add_footer(fig, vars_used: list, extra_notes: str = None,
     if extra_notes:
         notes_text = notes_text.rstrip(".") + ". " + extra_notes
 
+    # Wrap to estimate line count (width=130 chars matches typical figure width)
     wrapped_notes = "\n".join(textwrap.wrap(notes_text, width=130))
-    n_lines = wrapped_notes.count("\n") + 1
+    n_notes_lines = wrapped_notes.count("\n") + 1
+    n_source_lines = len(textwrap.wrap(SOURCE, width=130))
+    total_lines = (
+        n_notes_lines + n_source_lines + 1
+    )  # +1 for gap between Notes and Source
 
-    # Each line ~0.013 figure-height units at fontsize 7 on a typical figure.
-    # Auto-place Source below the Notes block with a small gap.
-    line_height = fontsize * 0.0018  # empirically calibrated
-    if y_source is None:
-        y_source = y_notes - n_lines * line_height - 0.005
+    # Each text line occupies ~fontsize * 0.0018 figure-height units at fontsize 7.
+    line_height = fontsize * 0.0018
+    if bottom_margin is None:
+        bottom_margin = total_lines * line_height + 0.015
 
-    fig.text(0.01, y_notes, wrapped_notes,
-             ha="left", va="top", fontsize=fontsize,
-             color="#444444", style="italic",
-             transform=fig.transFigure)
+    # Reserve space at the bottom so axes don't overlap the footer
+    fig.subplots_adjust(bottom=bottom_margin + 0.02)
 
-    fig.text(0.01, y_source, SOURCE,
-             ha="left", va="top", fontsize=fontsize,
-             color="#888888",
-             transform=fig.transFigure)
+    # Place Notes at the top of the reserved zone
+    y_notes = bottom_margin + 0.01
+    y_source = bottom_margin
+
+    fig.text(
+        0.01,
+        y_notes,
+        wrapped_notes,
+        ha="left",
+        va="top",
+        fontsize=fontsize,
+        color="#444444",
+        style="italic",
+        transform=fig.transFigure,
+    )
+
+    fig.text(
+        0.01,
+        y_source,
+        SOURCE,
+        ha="left",
+        va="top",
+        fontsize=fontsize,
+        color="#888888",
+        transform=fig.transFigure,
+    )

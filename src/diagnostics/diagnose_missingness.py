@@ -319,7 +319,7 @@ def main():
     ax.set_title("Missing Data: % per Country × Variable", fontsize=14)
     ax.set_xlabel("")
     ax.set_ylabel("")
-    plt.tight_layout(rect=[0, 0.06, 1, 1])
+    plt.tight_layout()
     add_footer(fig, [v for v in VARIABLES if v in DEFS])
     png_path = os.path.join(OUTPUT_DIR, "missingness_by_country_variable.png")
     plt.savefig(png_path, dpi=150, bbox_inches="tight")
@@ -447,7 +447,7 @@ def main():
     ax.legend(fontsize=8, loc="upper right")
 
     plt.suptitle("UNR Outlier Inspection", fontsize=13, fontweight="bold", y=1.01)
-    plt.tight_layout(rect=[0, 0.06, 1, 1])
+    plt.tight_layout()
     add_footer(fig2, ["unr"])
     unr_path = os.path.join(OUTPUT_DIR, "unr_outlier_inspection.png")
     plt.savefig(unr_path, dpi=150, bbox_inches="tight")
