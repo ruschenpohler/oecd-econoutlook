@@ -15,8 +15,8 @@ Nowcasting and forecasting are epistemically distinct problems: Nowcasting is a 
 
 Forecasting $y_{t+h}$ for $h \geq 1$ periods ahead is a more classical *prediction* problem: the information set at $t$ is complete, the ragged-edge problem absent. The challenge shifts to extrapolation under structural uncertainty. In practice this means:
 
-(a) conditioning the model on exogenous scenario paths, e.g. imposing an assumed path for oil prices or interest rates and propagating the implied GDP trajectory;
-(b) representing uncertainty not as a Kalman posterior that shrinks as data arrives, but as a distribution over parameter draws and scenario weights that compounds with the forecast horizon $h$.
+1. Conditioning the model on exogenous scenario paths, e.g. imposing an assumed path for oil prices or interest rates and propagating the implied GDP trajectory;
+2. Representing uncertainty not as a Kalman posterior that shrinks as data arrives, but as a distribution over parameter draws and scenario weights that compounds with the forecast horizon $h$.
 
 The architecture (pooled panel, time-aware train/test split, GBT vs. RF vs. AR(1) model comparison) extends directly to a conditional forecasting system. It replaces the nowcast target with $y_{t+h}$, imposing scenario restrictions on future covariate paths, and propagating uncertainty via Monte Carlo over the model's parameter distribution. The COVID robustness analysis already exercises the core skill that scenario forecasting requires, which is identifying when the training data generating process (DGP) breaks down and quantifying how much of the out-of-sample degradation is structural versus shock-specific. This requires structurally the same judgment as when assessing when a scenario assumption exceeds a model's validity range.
 
