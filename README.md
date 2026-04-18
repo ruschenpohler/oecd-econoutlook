@@ -1,4 +1,4 @@
-# GDP Nowcasting with Spark ML and OECD Economic Outlook Data
+# GDP Nowcasting with PySpark ML and OECD Economic Outlook Data
 *A nowcasting pipeline as foundation for conditional macro forecasting and scenario analysis*
 
 A PySpark ML pipeline that nowcasts annual GDP growth across 38 OECD member countries using lagged macroeconomic indicators from the OECD Economic Outlook. The project demonstrates end-to-end use of Spark ML, command of the OECD SDMX REST API, and fundamental nowcasting/model evaluation capabilities.
@@ -61,7 +61,7 @@ oecd-econoutlook/
 ├── src/
 │   ├── 01_pull_data.py      # SDMX API pull, pivot, clean
 │   ├── 02_feature_engineering.py  # Spark Window lags
-│   ├── 03_pipeline.py      # Spark ML Pipeline assembly and fit
+│   ├── 03_pipeline.py      # PySpark ML Pipeline assembly and fit
 │   ├── 04_evaluate.py       # CV, RF baseline, AR(1), robustness
 │   ├── labels.py            # Variable labels and figure utilities
 │   └── diagnostics/        # Aux. scripts: data quality & robustness checks
