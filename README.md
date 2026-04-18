@@ -1,8 +1,24 @@
-# GDP Nowcasting with Spark ML — OECD Economic Outlook
+# GDP Nowcasting with Spark ML and OECD Economic Outlook Data
+*A nowcasting pipeline as foundation for conditional macro forecasting and scenario analysis*
 
 A PySpark ML pipeline that nowcasts annual GDP growth across 38 OECD member countries using lagged macroeconomic indicators from the OECD Economic Outlook. The project demonstrates end-to-end use of Spark ML, command of the OECD SDMX REST API, and fundamental nowcasting/model evaluation capabilities.
 
 Loosely inspired by Dorville et al. (2025), "Towards more timely measures of labour productivity growth", *OECD Statistics Working Papers* No. 2025/01 ([paper](https://doi.org/10.1787/436ecbb5-en), [blog post](https://oecdstatistics.blog/2025/03/31/nowcasting-labour-productivity-growth-with-machine-learning-and-mixed-frequency-data/)). That paper nowcasts labour productivity using mixed-frequency ML models (GBT, RF, LASSO, Ridge, DFM with MIDAS) on a pooled cross-country panel with time-aware evaluation. This project adapts the core structure (a pooled panel, GBT as the primary model, time-based train/test split) to predict GDP growth using the Economic Outlook, implemented in PySpark. A few deliberate divergences: (1) annual frequency only (no MIDAS), (2) GDP growth as target rather than derived productivity, (3) Spark ML as execution engine.
+
+---
+
+## Relationship to forecasting and scenario modeling
+
+Beyond its immediate purpose of nowcasting GDP, this pipeline is thought of, more generally, as a foundation for macro forecasting and scenario analyses.
+
+Nowcasting and forecasting are epistemically distinct problems: Nowcasting is a *filtering* problem where the target variable $y_t$ is already realised but not yet published, and the task is to infer its value from higher-frequency or lower-lag proxies observed in the interim. In a Dynamic Factor Model (DFM) or Kalman filter formulation, this means computing a posterior over a latent present state from a panel where different series arrive at different publication lags. This leaves the data rectangle incomplete at any given point in time with the inferential challenge being this ragged edge.
+
+Forecasting $y_{t+h}$ for $h \geq 1$ periods ahead is a more classical *prediction* problem: the information set at $t$ is complete, the ragged-edge problem absent. The challenge shifts to extrapolation under structural uncertainty. In practice this means:
+
+(a) conditioning the model on exogenous scenario paths, e.g. imposing an assumed path for oil prices or interest rates and propagating the implied GDP trajectory;
+(b) representing uncertainty not as a Kalman posterior that shrinks as data arrives, but as a distribution over parameter draws and scenario weights that compounds with the forecast horizon $h$.
+
+The architecture (pooled panel, time-aware train/test split, GBT vs. RF vs. AR(1) model comparison) extends directly to a conditional forecasting system. It replaces the nowcast target with $y_{t+h}$, imposing scenario restrictions on future covariate paths, and propagating uncertainty via Monte Carlo over the model's parameter distribution. The COVID robustness analysis already exercises the core skill that scenario forecasting requires, which is identifying when the training data generating process (DGP) breaks down and quantifying how much of the out-of-sample degradation is structural versus shock-specific. This requires structurally the same judgment as when assessing when a scenario assumption exceeds a model's validity range.
 
 ---
 
@@ -154,6 +170,8 @@ The comparably simple RF is the best model in every sample. GBT's R-sq deteriora
 
 ## Notes
 
-**Model serialization:** Not implemented in teh current pipeline. `model.write().save()` requires a Hadoop filesystem (HDFS or compatible) which is not available in Spark local mode on Windows. A production system would serialize fitted PipelineModels to HDFS for reuse and auditability. 
+**Model serialization:** Not implemented in the current pipeline. `model.write().save()` requires a Hadoop filesystem (HDFS or compatible) which is not available in Spark local mode on Windows. A production system would serialize fitted PipelineModels to HDFS for reuse and auditability.
 
 **Spark's `CrossValidator`:** Only supports random k-fold partitioning, and not expanding-window time-series CV. In the current pipeline, one has to be concerned about the potential for temporal leakage. In-fold validation should ideally respect temporal order; but as I see it, correcting this requires a custom CV splitter outside the standard Spark ML API (which goes substantially beyond the scope of this project).
+
+**Extensions toward a production forecasting system:** Two natural next steps follow from the current architecture. First, conditional/scenario forecasting: replacing the nowcast target with $y_{t+h}$ and imposing Waggoner-Zha style restrictions on future covariate paths would convert this pipeline into a client-facing scenario tool, where the model propagates the GDP implications of assumed macro trajectories (e.g. a sustained high-rate environment or an energy price shock). Second, multi-horizon evaluation: the expanding-window CV limitation noted above becomes binding for honest forecast evaluation at horizons $h \in \{1, 2, 3\}$ years ahead, since error compounds differently across horizons and a single train/test split cannot capture this. Both are known scope boundaries of the current implementation, not design oversights.
