@@ -5,7 +5,10 @@ A PySpark ML pipeline that nowcasts annual GDP growth across 38 OECD member coun
 
 Loosely inspired by Dorville et al. (2025), "Towards more timely measures of labour productivity growth", *OECD Statistics Working Papers* No. 2025/01 ([paper](https://doi.org/10.1787/436ecbb5-en), [blog post](https://oecdstatistics.blog/2025/03/31/nowcasting-labour-productivity-growth-with-machine-learning-and-mixed-frequency-data/)). That paper nowcasts labour productivity using mixed-frequency ML models (GBT, RF, LASSO, Ridge, DFM with MIDAS) on a pooled cross-country panel with time-aware evaluation. This project adapts the core structure (a pooled panel, GBT as the primary model, time-based train/test split) to predict GDP growth using the Economic Outlook, implemented in PySpark. A few deliberate divergences: (1) annual frequency only (no MIDAS), (2) GDP growth as target rather than derived productivity, (3) Spark ML as execution engine.
 
----
+## Production pipeline
+
+> This research output was produced using the ML research platform for trustworthy human-agent collaboration in regulated environments ([link](https://github.com/ruschenpohler/agent-ml-platform-wp)).
+
 
 ## Relationship to forecasting and scenario modeling
 
