@@ -35,10 +35,44 @@ KEI_FILE = DATA_DIR / "OECD.SDD.STES,DSD_KEI@DF_KEI,4.0+all.csv"
 # 38 OECD member country codes (from v1)
 # ---------------------------------------------------------------------------
 TARGET_COUNTRIES = {
-    "AUS", "AUT", "BEL", "CAN", "CHL", "COL", "CRI", "CZE", "DEU", "DNK",
-    "ESP", "EST", "FIN", "FRA", "GBR", "GRC", "HUN", "IRL", "ISL", "ISR",
-    "ITA", "JPN", "KOR", "LTU", "LUX", "LVA", "MEX", "NLD", "NOR", "NZL",
-    "POL", "PRT", "SVK", "SVN", "SWE", "CHE", "TUR", "USA",
+    "AUS",
+    "AUT",
+    "BEL",
+    "CAN",
+    "CHL",
+    "COL",
+    "CRI",
+    "CZE",
+    "DEU",
+    "DNK",
+    "ESP",
+    "EST",
+    "FIN",
+    "FRA",
+    "GBR",
+    "GRC",
+    "HUN",
+    "IRL",
+    "ISL",
+    "ISR",
+    "ITA",
+    "JPN",
+    "KOR",
+    "LTU",
+    "LUX",
+    "LVA",
+    "MEX",
+    "NLD",
+    "NOR",
+    "NZL",
+    "POL",
+    "PRT",
+    "SVK",
+    "SVN",
+    "SWE",
+    "CHE",
+    "TUR",
+    "USA",
 }
 
 # ---------------------------------------------------------------------------
@@ -50,9 +84,12 @@ def pull_qna_gdp(path: Path) -> pd.DataFrame:
     """Real GDP chain-linked level (B1GQ, L, Y, S1, Q)."""
     df = pd.read_csv(path, low_memory=False)
     mask = (
-        (df["TRANSACTION"] == "B1GQ") & (df["PRICE_BASE"] == "L")
-        & (df["ADJUSTMENT"] == "Y") & (df["SECTOR"] == "S1")
-        & (df["FREQ"] == "Q") & (df["UNIT_MEASURE"] == "XDC")
+        (df["TRANSACTION"] == "B1GQ")
+        & (df["PRICE_BASE"] == "L")
+        & (df["ADJUSTMENT"] == "Y")
+        & (df["SECTOR"] == "S1")
+        & (df["FREQ"] == "Q")
+        & (df["UNIT_MEASURE"] == "XDC")
     )
     df = df.loc[mask, ["REF_AREA", "TIME_PERIOD", "OBS_VALUE"]].copy()
     df.columns = ["country_code", "year_quarter", "gdp_level_real"]
@@ -70,8 +107,10 @@ def pull_qna_components(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path, low_memory=False)
     mask = (
         (df["TRANSACTION"].isin(["P51G", "P6", "P7"]))
-        & (df["PRICE_BASE"] == "L") & (df["ADJUSTMENT"] == "Y")
-        & (df["SECTOR"] == "S1") & (df["FREQ"] == "Q")
+        & (df["PRICE_BASE"] == "L")
+        & (df["ADJUSTMENT"] == "Y")
+        & (df["SECTOR"] == "S1")
+        & (df["FREQ"] == "Q")
         & (df["UNIT_MEASURE"] == "XDC")
     )
     df = df.loc[mask, ["REF_AREA", "TIME_PERIOD", "TRANSACTION", "OBS_VALUE"]].copy()
@@ -84,9 +123,7 @@ def pull_qna_components(path: Path) -> pd.DataFrame:
         values="obs_value",
     ).reset_index()
     pivoted.columns.name = None
-    pivoted = pivoted.rename(
-        columns={"P51G": "itv_level", "P6": "xgsv_level", "P7": "mgsv_level"}
-    )
+    pivoted = pivoted.rename(columns={"P51G": "itv_level", "P6": "xgsv_level", "P7": "mgsv_level"})
     pivoted = pivoted[pivoted["country_code"].isin(TARGET_COUNTRIES)].reset_index(drop=True)
     return pivoted
 
@@ -184,15 +221,13 @@ def compute_component_growth(df: pd.DataFrame) -> pd.DataFrame:
     Compute Q/Q and Y/Y growth for investment (itv), exports (xgsv), imports (mgsv).
     Adds columns: itv_annpct, itv_yy, xgsv_annpct, xgsv_yy, mgsv_annpct, mgsv_yy
     """
-    for prefix, level_col in [
-        ("itv", "itv_level"), ("xgsv", "xgsv_level"), ("mgsv", "mgsv_level")
-    ]:
+    for prefix, level_col in [("itv", "itv_level"), ("xgsv", "xgsv_level"), ("mgsv", "mgsv_level")]:
         if level_col not in df.columns:
             continue
         df = df.sort_values(["country_code", "year_quarter"])
         g = df.groupby("country_code")[level_col]
         ratio = g.shift(0) / g.shift(1)
-        df[f"{prefix}_annpct"] = (ratio ** 4 - 1) * 100
+        df[f"{prefix}_annpct"] = (ratio**4 - 1) * 100
         df[f"{prefix}_yy"] = (g.shift(0) / g.shift(4) - 1) * 100
     return df
 
@@ -245,7 +280,7 @@ def main():
     print(f"  {len(gdp)} rows, {gdp['country_code'].nunique()} countries")
 
     # --- QNA components ---
-    print(f"\n[2/7] QNA components (GFCF, exports, imports) ...")
+    print("\n[2/7] QNA components (GFCF, exports, imports) ...")
     components = pull_qna_components(QNA_LEVEL_FILE)
     print(f"  {len(components)} rows, {components['country_code'].nunique()} countries")
 
@@ -289,7 +324,7 @@ def main():
     print(f"  Shape: {panel.shape}")
 
     cli.to_parquet(DATA_DIR / "cli_monthly.parquet", index=False)
-    print(f"Saved CLI to cli_monthly.parquet")
+    print("Saved CLI to cli_monthly.parquet")
 
     log_coverage(panel, COVERAGE_PATH)
     print(f"Coverage log: {COVERAGE_PATH}")

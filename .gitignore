@@ -15,6 +15,7 @@ spark-warehouse/
 
 # Implementation plan (never commit)
 impl-plan_v2.md
+impl-log.md
 
 # Python
 __pycache__/
