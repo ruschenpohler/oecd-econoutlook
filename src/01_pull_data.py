@@ -1,210 +1,274 @@
 """
-01_pull_data.py — Pull OECD Economic Outlook data via SDMX REST API.
+Phase 1 data pull: QNA (level + growth) + CLI + STES.
 
-Downloads annual macroeconomic indicators for all OECD member countries,
-pivots wide (one row per country-year), and saves to data/oecd_economic_outlook.csv.
+Reads from locally downloaded OECD Data Explorer CSV exports.
+One entry point, one output file.
 
-Data source: OECD Economic Outlook via SDMX
-  Dataflow: OECD.ECO.MAD,DSD_EO@DF_EO,
-  API docs: https://data-explorer.oecd.org/
+Usage:
+    uv run python src/01_pull_data.py
 """
-
-import os
-import requests
+import numpy as np
 import pandas as pd
+from pathlib import Path
+
+from data_quality import compute_growth_from_level, reconcile_growth, log_reconciliation_summary
 
 # ---------------------------------------------------------------------------
-# Configuration
+# Paths
 # ---------------------------------------------------------------------------
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = PROJECT_ROOT / "data"
+OUTPUT_DIR = PROJECT_ROOT / "output"
+OUTPUT_PATH = DATA_DIR / "raw_quarterly.parquet"
+COVERAGE_PATH = OUTPUT_DIR / "data_coverage.md"
 
-ENDPOINT = "https://sdmx.oecd.org/public/rest/data"
-DATAFLOW = "OECD.ECO.MAD,DSD_EO@DF_EO,"
+# ---------------------------------------------------------------------------
+# Downloaded CSV files (manual export from https://data-explorer.oecd.org/)
+# ---------------------------------------------------------------------------
+QNA_LEVEL_FILE   = DATA_DIR / "OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA_EXPENDITURE_NATIO_CURR,1.1+all.csv"
+QNA_GROWTH_FILE  = DATA_DIR / "OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA_EXPENDITURE_GROWTH_OECD,+all.csv"
+CLI_FILE         = DATA_DIR / "OECD.SDD.STES,DSD_STES@DF_CLI,4.1+all.csv"
 
-# Variables to pull (MEASURE dimension codes).
-# Codes verified against DSD_EO@DF_EO available measures (217 total).
-# Dropped CPI_YTYPCT (headline inflation) and SRATIO (household saving ratio)
-# due to structural missingness:
-#   - CPI_YTYPCT: entirely missing for all Eurozone members (reported at
-#     aggregate level only in the Economic Outlook)
-#   - SRATIO: entirely missing for 26 countries including major OECD members
-#     (FRA, GBR, GRC, PRT, ISL, ISR, TUR, ...)
-# Remaining 6 features still capture demand (investment, trade), external
-# balance (current account), and labour market slack (unemployment).
-MEASURES = {
-    "GDPV_ANNPCT":  "Real GDP growth (%)",               # ← target variable
-    "UNR":          "Unemployment rate (%)",
-    "CBGDPR":       "Current account balance (% GDP)",
-    "ITV_ANNPCT":   "Gross fixed capital formation, volume, growth (%)",
-    "XGSV_ANNPCT":  "Export volume growth (%)",
-    "MGSV_ANNPCT":  "Import volume growth (%)",
-}
+# STES key short-term indicators — not yet downloaded; skip if missing
+STES_FILE        = DATA_DIR / "OECD.SDD.STES,DSD_STES@DF_STES,4.1+all.csv"
 
-# Positive list: OECD member country codes (as of 2024, 38 members).
-# We restrict to actual member states to avoid aggregates (OECD, EA20, G7, W, ...),
-# non-OECD partner economies (ARG, BRA, CHN, IDN, IND, ...), and commodity
-# groupings (OIL_O, OIL_SAU_O). This keeps the empirical question clean:
-# "nowcasting GDP growth across OECD member economies."
-OECD_MEMBERS = {
+# ---------------------------------------------------------------------------
+# 38 OECD member country codes (from v1)
+# ---------------------------------------------------------------------------
+TARGET_COUNTRIES = {
     "AUS", "AUT", "BEL", "CAN", "CHL", "COL", "CRI", "CZE", "DEU", "DNK",
     "ESP", "EST", "FIN", "FRA", "GBR", "GRC", "HUN", "IRL", "ISL", "ISR",
     "ITA", "JPN", "KOR", "LTU", "LUX", "LVA", "MEX", "NLD", "NOR", "NZL",
     "POL", "PRT", "SVK", "SVN", "SWE", "CHE", "TUR", "USA",
 }
 
-# Paths — resolve relative to project root so the script works from any cwd
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-DATA_DIR = os.path.join(PROJECT_ROOT, "data")
-OUTPUT_PATH = os.path.join(DATA_DIR, "oecd_economic_outlook.csv")
-
 # ---------------------------------------------------------------------------
-# Download
+# QNA level series
 # ---------------------------------------------------------------------------
 
-def build_url():
-    """Construct the SDMX REST query URL.
-
-    URL pattern:
-      {endpoint}/{dataflow}/{key}?params
-    Key structure for DF_EO (from OECD Data Explorer):
-      {REF_AREA}.{MEASURE}.{FREQUENCY}
-    We leave REF_AREA empty (= all countries) and pass measures as +-separated.
+def pull_qna_level(path: Path) -> pd.DataFrame:
     """
-    measures_str = "+".join(MEASURES.keys())
-    # Key: .{MEASURES}.A (empty REF_AREA = all, A = annual)
-    key = f".{measures_str}.A"
-    params = (
-        "startPeriod=1990"
-        "&dimensionAtObservation=AllDimensions"
-        "&format=csvfilewithlabels"
+    Read QNA National Currency CSV, extract real GDP chain-linked level.
+
+    Returns DataFrame with columns:
+        country_code, year_quarter, gdp_level_real
+    """
+    df = pd.read_csv(path, low_memory=False)
+
+    # Filter: GDP (B1GQ), chain-linked (L), seasonally adjusted (Y),
+    #         total economy (S1), quarterly (Q), national currency (XDC)
+    mask = (
+        (df["TRANSACTION"] == "B1GQ")
+        & (df["PRICE_BASE"] == "L")
+        & (df["ADJUSTMENT"] == "Y")
+        & (df["SECTOR"] == "S1")
+        & (df["FREQ"] == "Q")
+        & (df["UNIT_MEASURE"] == "XDC")
     )
-    return f"{ENDPOINT}/{DATAFLOW}/{key}?{params}"
+    df = df.loc[mask, ["REF_AREA", "TIME_PERIOD", "OBS_VALUE"]].copy()
+    df.columns = ["country_code", "year_quarter", "gdp_level_real"]
 
+    # Normalise period format: "1947-Q1" is already correct
+    # Filter to target countries
+    available = set(df["country_code"].unique())
+    missing = TARGET_COUNTRIES - available
+    if missing:
+        print(f"WARNING: QNA level missing for {sorted(missing)}")
+    df = df[df["country_code"].isin(TARGET_COUNTRIES)].copy()
 
-def download_data():
-    """Fetch data from the OECD SDMX API and return a raw pandas DataFrame."""
-    url = build_url()
-    print(f"Fetching data from:\n  {url}\n")
-
-    resp = requests.get(url, timeout=120)
-    resp.raise_for_status()
-
-    # The API returns CSV; read it directly from the response text
-    from io import StringIO
-    raw = pd.read_csv(StringIO(resp.text))
-    print(f"Raw download: {raw.shape[0]:,} rows × {raw.shape[1]} columns")
-    return raw
+    df["gdp_level_real"] = pd.to_numeric(df["gdp_level_real"], errors="coerce")
+    df = df.dropna(subset=["gdp_level_real"])
+    return df.reset_index(drop=True)
 
 
 # ---------------------------------------------------------------------------
-# Clean & pivot
+# QNA growth series (for reconciliation)
 # ---------------------------------------------------------------------------
 
-def clean_and_pivot(raw: pd.DataFrame) -> pd.DataFrame:
-    """Transform the long SDMX CSV into a wide panel dataset.
-
-    The raw CSV has one row per observation with columns like:
-      REF_AREA, Reference area, MEASURE, Measure, TIME_PERIOD, OBS_VALUE, ...
-    We pivot to: one row per (country_code, country_name, year), one column per variable.
+def pull_qna_growth(path: Path) -> pd.DataFrame:
     """
-    # Identify the columns we need — SDMX CSV column names can vary slightly,
-    # so we handle both labelled and code-only formats
-    col_map = {}
-    for candidate, target in [
-        ("REF_AREA", "country_code"),
-        ("Reference area", "country_name"),
-        ("MEASURE", "measure"),
-        ("TIME_PERIOD", "year"),
-        ("OBS_VALUE", "value"),
-    ]:
-        if candidate in raw.columns:
-            col_map[candidate] = target
+    Read QNA GROWTH CSV, extract OECD-published Q/Q (G1) and Y/Y (GY) growth.
 
-    df = raw.rename(columns=col_map)
+    Returns DataFrame with columns:
+        country_code, year_quarter, gdpv_qq_published, gdpv_yy_published
+    """
+    df = pd.read_csv(path, low_memory=False)
 
-    # If country_name column wasn't in the CSV, create a placeholder
-    if "country_name" not in df.columns:
-        df["country_name"] = df["country_code"]
+    mask = (
+        (df["TRANSACTION"] == "B1GQ")
+        & (df["ADJUSTMENT"] == "Y")
+        & (df["TRANSFORMATION"].isin(["G1", "GY"]))
+    )
+    df = df.loc[mask, ["REF_AREA", "TIME_PERIOD", "TRANSFORMATION", "OBS_VALUE"]].copy()
+    df.columns = ["country_code", "year_quarter", "transformation", "obs_value"]
 
-    # Keep only the columns we need
-    df = df[["country_code", "country_name", "measure", "year", "value"]].copy()
+    df["obs_value"] = pd.to_numeric(df["obs_value"], errors="coerce")
 
-    # Convert types
-    df["year"] = pd.to_numeric(df["year"], errors="coerce").astype("Int64")
-    df["value"] = pd.to_numeric(df["value"], errors="coerce")
-
-    # Keep only OECD member countries (positive list).
-    # Drops aggregates (OECD, EA20, G7, W, ...), non-OECD partners (ARG, BRA,
-    # CHN, ...), and commodity groupings (OIL_O, OIL_SAU_O).
-    all_codes = set(df["country_code"].unique())
-    n_before = len(all_codes)
-    dropped = sorted(all_codes - OECD_MEMBERS)
-    df = df[df["country_code"].isin(OECD_MEMBERS)]
-    n_after = df["country_code"].nunique()
-    print(f"Kept {n_after} OECD members, dropped {n_before - n_after} "
-          f"non-member/aggregate entities: {', '.join(dropped)}")
-
-    # Pivot: one row per (country, year), one column per measure
-    df_wide = df.pivot_table(
-        index=["country_code", "country_name", "year"],
-        columns="measure",
-        values="value",
-        aggfunc="first",  # should be one value per cell; first handles any duplicates
+    # Pivot: one column for G1 (Q/Q), one for GY (Y/Y)
+    pivoted = df.pivot_table(
+        index=["country_code", "year_quarter"],
+        columns="transformation",
+        values="obs_value",
     ).reset_index()
 
-    # Flatten MultiIndex columns from pivot
-    df_wide.columns.name = None
+    pivoted.columns.name = None
+    pivoted = pivoted.rename(columns={"G1": "gdpv_qq_published", "GY": "gdpv_yy_published"})
 
-    # Lowercase column names for consistency
-    df_wide.columns = [c.lower() for c in df_wide.columns]
+    # Filter to target countries
+    available = set(pivoted["country_code"].unique())
+    missing = TARGET_COUNTRIES - available
+    if missing:
+        print(f"WARNING: QNA growth missing for {sorted(missing)}")
+    pivoted = pivoted[pivoted["country_code"].isin(TARGET_COUNTRIES)].copy()
 
-    # Sort for readability
-    df_wide = df_wide.sort_values(["country_code", "year"]).reset_index(drop=True)
-
-    return df_wide
-
-
-# ---------------------------------------------------------------------------
-# Summary
-# ---------------------------------------------------------------------------
-
-def print_summary(df: pd.DataFrame):
-    """Print a concise summary of the cleaned dataset."""
-    countries = sorted(df["country_code"].unique())
-    year_min = df["year"].min()
-    year_max = df["year"].max()
-
-    print(f"\n{'='*60}")
-    print(f"OECD Economic Outlook — Cleaned Dataset")
-    print(f"{'='*60}")
-    print(f"Shape:      {df.shape[0]:,} rows × {df.shape[1]} columns")
-    print(f"Countries:  {len(countries)} ({countries[0]} ... {countries[-1]})")
-    print(f"Years:      {year_min}–{year_max}")
-    print(f"\nVariables:")
-    for code, desc in MEASURES.items():
-        col = code.lower()
-        if col in df.columns:
-            n_miss = df[col].isna().sum()
-            pct_miss = 100 * n_miss / len(df)
-            print(f"  {col:<20s} {desc:<35s} missing: {n_miss:>4d} ({pct_miss:.1f}%)")
-        else:
-            print(f"  {col:<20s} {desc:<35s} ** NOT FOUND IN DATA **")
-    print(f"{'='*60}\n")
+    return pivoted.reset_index(drop=True)
 
 
 # ---------------------------------------------------------------------------
-# Main
+# CLI series
 # ---------------------------------------------------------------------------
+
+def pull_cli(path: Path) -> pd.DataFrame:
+    """
+    Read CLI CSV, extract amplitude-adjusted index (LI + AA + IX).
+
+    Returns long-format DataFrame with columns:
+        country_code, year_month, cli
+    """
+    df = pd.read_csv(path, low_memory=False)
+
+    mask = (
+        (df["MEASURE"] == "LI")
+        & (df["ADJUSTMENT"] == "AA")
+        & (df["TRANSFORMATION"] == "IX")
+    )
+    df = df.loc[mask, ["REF_AREA", "TIME_PERIOD", "OBS_VALUE"]].copy()
+    df.columns = ["country_code", "year_month", "cli"]
+
+    # "year_month" is like "2025-06" — normalise to period
+    df["year_month"] = df["year_month"].astype(str)
+    df["cli"] = pd.to_numeric(df["cli"], errors="coerce")
+    df = df.dropna(subset=["cli"])
+
+    # Filter to target countries
+    available = set(df["country_code"].unique())
+    oecd_with_cli = available & TARGET_COUNTRIES
+    oecd_without_cli = TARGET_COUNTRIES - available
+    print(f"  CLI available for {len(oecd_with_cli)} OECD members: {sorted(oecd_with_cli)}")
+    print(f"  CLI not available for {len(oecd_without_cli)} OECD members (no headline LI series)")
+    df = df[df["country_code"].isin(available & TARGET_COUNTRIES)].copy()
+
+    return df.reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------
+# STES key short-term indicators — deferred; stub
+# ---------------------------------------------------------------------------
+
+def pull_stes(path: Path) -> pd.DataFrame:
+    """
+    Read STES CSV, extract UNR, CBGDPR, ITV_ANNPCT, XGSV_ANNPCT, MGSV_ANNPCT.
+
+    Returns long-format DataFrame with columns:
+        country_code, year_quarter, unr, cbgdpr, ...
+    """
+    raise NotImplementedError("STES file not yet downloaded")
+
+
+# ---------------------------------------------------------------------------
+# Merge and output
+# ---------------------------------------------------------------------------
+
+def log_coverage(df: pd.DataFrame, path: Path) -> None:
+    """Write per-country coverage log (start_quarter, end_quarter, n_obs)."""
+    coverage = (
+        df.groupby("country_code")["year_quarter"]
+        .agg(start="min", end="max", n_obs="count")
+        .sort_values("start")
+    )
+    late_entry = coverage[coverage["start"] > "2005-Q4"]
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("# QNA quarterly coverage by country\n\n")
+        dropped = TARGET_COUNTRIES - set(coverage.index)
+        if dropped:
+            f.write(f"**Dropped countries** (missing chain-linked quarterly GDP level): "
+                    f"{', '.join(sorted(dropped))}\n\n")
+            f.write(f"These countries are available in the GROWTH dataset (published rates) "
+                    f"but lack chain-linked (PRICE_BASE=L) levels in the national currency table. "
+                    f"Panel proceeds with N={len(coverage)} countries.\n\n")
+        f.write(f"Panel: {coverage['start'].min()} to {coverage['end'].max()}, "
+                f"N={len(coverage)} countries, {coverage['n_obs'].sum()} observations\n\n")
+        f.write("| country_code | start | end | n_obs | late_entry |\n")
+        f.write("|--------------|-------|-----|-------|------------|\n")
+        for country, row in coverage.iterrows():
+            late = "LATE" if row["start"] > "2005-Q4" else ""
+            f.write(f"| {country} | {row['start']} | {row['end']} | {row['n_obs']} | {late} |\n")
+
+    if len(late_entry) > 0:
+        print(f"\nLate-entry countries (start > 2005Q4): {list(late_entry.index)}")
+        print("These will be handled by cold-start logic in 1.3.")
+
 
 def main():
-    os.makedirs(DATA_DIR, exist_ok=True)
+    print("=" * 60)
+    print("Phase 1.1 — Quarterly data pull")
+    print("=" * 60)
 
-    raw = download_data()
-    df = clean_and_pivot(raw)
-    print_summary(df)
+    # --- QNA level ---
+    print(f"\n[1/5] Reading QNA level from {QNA_LEVEL_FILE.name} ...")
+    level = pull_qna_level(QNA_LEVEL_FILE)
+    print(f"  {len(level)} rows, {level['country_code'].nunique()} countries")
 
-    df.to_csv(OUTPUT_PATH, index=False)
-    print(f"Saved to {OUTPUT_PATH}")
+    # --- Compute growth from level ---
+    print("\n[2/5] Computing Q/Q and Y/Y growth from level ...")
+    level = compute_growth_from_level(level)
+
+    # --- QNA growth ---
+    print(f"\n[3/5] Reading QNA growth from {QNA_GROWTH_FILE.name} ...")
+    growth = pull_qna_growth(QNA_GROWTH_FILE)
+    print(f"  {len(growth)} rows, {growth['country_code'].nunique()} countries")
+
+    # --- Merge and reconcile ---
+    print("\n[4/5] Merging level + published growth and reconciling ...")
+    panel = level.merge(growth, on=["country_code", "year_quarter"], how="left")
+    panel = reconcile_growth(panel)
+    print(f"  Reconciliation: {log_reconciliation_summary(panel)}")
+
+    # --- CLI ---
+    print(f"\n[5/5] Reading CLI from {CLI_FILE.name} ...")
+    cli = pull_cli(CLI_FILE)
+    print(f"  {len(cli)} rows, {cli['country_code'].nunique()} countries")
+
+    # --- STES (optional) ---
+    if STES_FILE.exists():
+        print(f"\n[STES] Reading STES from {STES_FILE.name} ...")
+        stes = pull_stes(STES_FILE)
+        print(f"  {len(stes)} rows, {stes['country_code'].nunique()} countries")
+    else:
+        print("\n[STES] File not yet downloaded — skipping.")
+
+    # --- Output ---
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    panel.to_parquet(OUTPUT_PATH, index=False)
+    print(f"\nSaved panel to {OUTPUT_PATH}")
+    print(f"  Columns: {list(panel.columns)}")
+    print(f"  Shape: {panel.shape}")
+
+    # --- Save CLI separately (monthly, will be merged in feature engineering) ---
+    cli_path = DATA_DIR / "cli_monthly.parquet"
+    cli.to_parquet(cli_path, index=False)
+    print(f"Saved CLI to {cli_path}")
+
+    # --- Coverage log ---
+    log_coverage(panel, COVERAGE_PATH)
+    print(f"Coverage log written to {COVERAGE_PATH}")
+
+    if dropped := TARGET_COUNTRIES - set(panel["country_code"].unique()):
+        print(f"Countries dropped (no chain-linked quarterly level): {sorted(dropped)}")
+
+    print("\nDone.")
 
 
 if __name__ == "__main__":

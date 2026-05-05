@@ -5,11 +5,15 @@ description = "Nowcasting OECD GDP growth with PySpark ML and SDMX data"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "cloudscraper>=1.2.71",
+    "curl-cffi>=0.15.0",
     "jupyter",
     "matplotlib>=3.7.0",
     "openpyxl>=3.1.5",
     "pandas>=2.0.0",
+    "pyarrow>=24.0.0",
     "pyspark>=3.5,<4.0",
     "requests>=2.31.0",
     "seaborn>=0.12.0",
+    "tabulate>=0.10.0",
 ]
