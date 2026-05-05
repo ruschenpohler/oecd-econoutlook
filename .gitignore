@@ -13,6 +13,9 @@ metastore_db/
 derby.log
 spark-warehouse/
 
+# Implementation plan (never commit)
+impl-plan_v2.md
+
 # Python
 __pycache__/
 *.pyc
