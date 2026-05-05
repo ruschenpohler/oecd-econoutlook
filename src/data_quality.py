@@ -2,9 +2,11 @@
 Growth-series reconciliation: cross-validate computed growth against
 OECD-published growth rates.
 """
+
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
 
 
 def compute_growth_from_level(
@@ -24,7 +26,7 @@ def compute_growth_from_level(
     g = out.groupby(country_col)[level_col]
     qoq_ratio = g.shift(0) / g.shift(1)
     out["gdpv_qq_simple"] = (qoq_ratio - 1) * 100
-    out["gdpv_qq_annualised"] = (qoq_ratio ** 4 - 1) * 100
+    out["gdpv_qq_annualised"] = (qoq_ratio**4 - 1) * 100
     out["gdpv_yy_computed"] = (g.shift(0) / g.shift(4) - 1) * 100
     return out
 
@@ -55,13 +57,15 @@ def reconcile_growth(
         worst_idx = diff.nlargest(10).index
         worst = df.loc[worst_idx, ["country_code", "year_quarter", c, p]].copy()
         worst["abs_diff_pp"] = diff.loc[worst_idx].round(3)
-        rows.append({
-            "measure": measure,
-            "n_total": int(n_total),
-            "n_breach": int(n_breach),
-            "share_breach": round(n_breach / n_total, 4) if n_total else np.nan,
-            "worst": worst,
-        })
+        rows.append(
+            {
+                "measure": measure,
+                "n_total": int(n_total),
+                "n_breach": int(n_breach),
+                "share_breach": round(n_breach / n_total, 4) if n_total else np.nan,
+                "worst": worst,
+            }
+        )
         if n_breach > 0:
             share = n_breach / n_total if n_total else 0
             print(
@@ -74,11 +78,14 @@ def reconcile_growth(
         for r in rows:
             f.write(f"## {r['measure'].upper()}\n\n")
             f.write(f"- Cells compared: {r['n_total']}\n")
-            f.write(f"- Cells above {tolerance_pp}pp tolerance: "
-                    f"{r['n_breach']} ({r['share_breach']:.2%})\n\n")
+            f.write(
+                f"- Cells above {tolerance_pp}pp tolerance: "
+                f"{r['n_breach']} ({r['share_breach']:.2%})\n\n"
+            )
             f.write("### 10 largest deviations\n\n")
             f.write(r["worst"].to_markdown(index=False) + "\n\n")
     return df
+
 
 def log_reconciliation_summary(panel: pd.DataFrame) -> str:
     """Return a one-line summary of reconciliation results."""

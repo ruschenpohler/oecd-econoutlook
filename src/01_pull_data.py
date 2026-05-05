@@ -7,11 +7,12 @@ One entry point, one output file.
 Usage:
     uv run python src/01_pull_data.py
 """
-import numpy as np
-import pandas as pd
+
 from pathlib import Path
 
-from data_quality import compute_growth_from_level, reconcile_growth, log_reconciliation_summary
+import pandas as pd
+
+from data_quality import compute_growth_from_level, log_reconciliation_summary, reconcile_growth
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -25,26 +26,61 @@ COVERAGE_PATH = OUTPUT_DIR / "data_coverage.md"
 # ---------------------------------------------------------------------------
 # Downloaded CSV files (manual export from https://data-explorer.oecd.org/)
 # ---------------------------------------------------------------------------
-QNA_LEVEL_FILE   = DATA_DIR / "OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA_EXPENDITURE_NATIO_CURR,1.1+all.csv"
-QNA_GROWTH_FILE  = DATA_DIR / "OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA_EXPENDITURE_GROWTH_OECD,+all.csv"
-CLI_FILE         = DATA_DIR / "OECD.SDD.STES,DSD_STES@DF_CLI,4.1+all.csv"
+QNA_LEVEL_FILE = DATA_DIR / "OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA_EXPENDITURE_NATIO_CURR,1.1+all.csv"
+QNA_GROWTH_FILE = DATA_DIR / "OECD.SDD.NAD,DSD_NAMAIN1@DF_QNA_EXPENDITURE_GROWTH_OECD,+all.csv"
+CLI_FILE = DATA_DIR / "OECD.SDD.STES,DSD_STES@DF_CLI,4.1+all.csv"
 
 # STES key short-term indicators — not yet downloaded; skip if missing
-STES_FILE        = DATA_DIR / "OECD.SDD.STES,DSD_STES@DF_STES,4.1+all.csv"
+STES_FILE = DATA_DIR / "OECD.SDD.STES,DSD_STES@DF_STES,4.1+all.csv"
 
 # ---------------------------------------------------------------------------
 # 38 OECD member country codes (from v1)
 # ---------------------------------------------------------------------------
 TARGET_COUNTRIES = {
-    "AUS", "AUT", "BEL", "CAN", "CHL", "COL", "CRI", "CZE", "DEU", "DNK",
-    "ESP", "EST", "FIN", "FRA", "GBR", "GRC", "HUN", "IRL", "ISL", "ISR",
-    "ITA", "JPN", "KOR", "LTU", "LUX", "LVA", "MEX", "NLD", "NOR", "NZL",
-    "POL", "PRT", "SVK", "SVN", "SWE", "CHE", "TUR", "USA",
+    "AUS",
+    "AUT",
+    "BEL",
+    "CAN",
+    "CHL",
+    "COL",
+    "CRI",
+    "CZE",
+    "DEU",
+    "DNK",
+    "ESP",
+    "EST",
+    "FIN",
+    "FRA",
+    "GBR",
+    "GRC",
+    "HUN",
+    "IRL",
+    "ISL",
+    "ISR",
+    "ITA",
+    "JPN",
+    "KOR",
+    "LTU",
+    "LUX",
+    "LVA",
+    "MEX",
+    "NLD",
+    "NOR",
+    "NZL",
+    "POL",
+    "PRT",
+    "SVK",
+    "SVN",
+    "SWE",
+    "CHE",
+    "TUR",
+    "USA",
 }
 
 # ---------------------------------------------------------------------------
 # QNA level series
 # ---------------------------------------------------------------------------
+
 
 def pull_qna_level(path: Path) -> pd.DataFrame:
     """
@@ -84,6 +120,7 @@ def pull_qna_level(path: Path) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # QNA growth series (for reconciliation)
 # ---------------------------------------------------------------------------
+
 
 def pull_qna_growth(path: Path) -> pd.DataFrame:
     """
@@ -128,6 +165,7 @@ def pull_qna_growth(path: Path) -> pd.DataFrame:
 # CLI series
 # ---------------------------------------------------------------------------
 
+
 def pull_cli(path: Path) -> pd.DataFrame:
     """
     Read CLI CSV, extract amplitude-adjusted index (LI + AA + IX).
@@ -137,11 +175,7 @@ def pull_cli(path: Path) -> pd.DataFrame:
     """
     df = pd.read_csv(path, low_memory=False)
 
-    mask = (
-        (df["MEASURE"] == "LI")
-        & (df["ADJUSTMENT"] == "AA")
-        & (df["TRANSFORMATION"] == "IX")
-    )
+    mask = (df["MEASURE"] == "LI") & (df["ADJUSTMENT"] == "AA") & (df["TRANSFORMATION"] == "IX")
     df = df.loc[mask, ["REF_AREA", "TIME_PERIOD", "OBS_VALUE"]].copy()
     df.columns = ["country_code", "year_month", "cli"]
 
@@ -165,6 +199,7 @@ def pull_cli(path: Path) -> pd.DataFrame:
 # STES key short-term indicators — deferred; stub
 # ---------------------------------------------------------------------------
 
+
 def pull_stes(path: Path) -> pd.DataFrame:
     """
     Read STES CSV, extract UNR, CBGDPR, ITV_ANNPCT, XGSV_ANNPCT, MGSV_ANNPCT.
@@ -178,6 +213,7 @@ def pull_stes(path: Path) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # Merge and output
 # ---------------------------------------------------------------------------
+
 
 def log_coverage(df: pd.DataFrame, path: Path) -> None:
     """Write per-country coverage log (start_quarter, end_quarter, n_obs)."""
@@ -193,13 +229,19 @@ def log_coverage(df: pd.DataFrame, path: Path) -> None:
         f.write("# QNA quarterly coverage by country\n\n")
         dropped = TARGET_COUNTRIES - set(coverage.index)
         if dropped:
-            f.write(f"**Dropped countries** (missing chain-linked quarterly GDP level): "
-                    f"{', '.join(sorted(dropped))}\n\n")
-            f.write(f"These countries are available in the GROWTH dataset (published rates) "
-                    f"but lack chain-linked (PRICE_BASE=L) levels in the national currency table. "
-                    f"Panel proceeds with N={len(coverage)} countries.\n\n")
-        f.write(f"Panel: {coverage['start'].min()} to {coverage['end'].max()}, "
-                f"N={len(coverage)} countries, {coverage['n_obs'].sum()} observations\n\n")
+            f.write(
+                f"**Dropped countries** (missing chain-linked quarterly GDP level): "
+                f"{', '.join(sorted(dropped))}\n\n"
+            )
+            f.write(
+                f"These countries are available in the GROWTH dataset (published rates) "
+                f"but lack chain-linked (PRICE_BASE=L) levels in the national currency table. "
+                f"Panel proceeds with N={len(coverage)} countries.\n\n"
+            )
+        f.write(
+            f"Panel: {coverage['start'].min()} to {coverage['end'].max()}, "
+            f"N={len(coverage)} countries, {coverage['n_obs'].sum()} observations\n\n"
+        )
         f.write("| country_code | start | end | n_obs | late_entry |\n")
         f.write("|--------------|-------|-----|-------|------------|\n")
         for country, row in coverage.iterrows():
